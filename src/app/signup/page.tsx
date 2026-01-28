@@ -14,7 +14,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { register, isLoading, isAuthenticated, error, clearError } = useAuth();
   const { addToast } = useToast();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -90,7 +90,7 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     try {
@@ -101,7 +101,7 @@ export default function SignupPage() {
       });
     } catch (error: any) {
       const errorMessage = formatError(error);
-      
+
       if (error.type === 'validation' && error.errors) {
         setFormErrors(error.errors);
       } else {
@@ -145,21 +145,8 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-100 flex items-center justify-center p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
-      
-      <div className="w-full max-w-md">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl shadow-lg shadow-purple-600/25 mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            Join SecureAuth
-          </h1>
-          <p className="text-gray-600 text-sm mt-1">Create your enterprise account</p>
-        </div>
 
+      <div className="w-full max-w-md">
         <Card variant="glass" className="backdrop-blur-xl border-white/20">
           <CardHeader className="text-center pb-6">
             <CardTitle className="text-2xl font-bold text-gray-900">
@@ -244,15 +231,14 @@ export default function SignupPage() {
                     </button>
                   }
                 />
-                
+
                 {/* Password strength indicator */}
                 {formData.password && (
                   <div className="mt-3 space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-medium text-gray-700">Password strength</span>
-                      <span className={`text-xs font-semibold ${
-                        passwordStrength.isValid ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <span className={`text-xs font-semibold ${passwordStrength.isValid ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {getPasswordStrengthText()}
                       </span>
                     </div>
@@ -343,20 +329,6 @@ export default function SignupPage() {
             </form>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-gray-500">
-            Join 50,000+ professionals using SecureAuth
-          </p>
-          <div className="flex items-center justify-center mt-2 space-x-4 text-xs text-gray-400">
-            <Link href="#" className="hover:text-gray-600 transition-colors">Privacy</Link>
-            <span>•</span>
-            <Link href="#" className="hover:text-gray-600 transition-colors">Terms</Link>
-            <span>•</span>
-            <Link href="#" className="hover:text-gray-600 transition-colors">Support</Link>
-          </div>
-        </div>
       </div>
     </div>
   );

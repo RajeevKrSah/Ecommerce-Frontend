@@ -14,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading, isAuthenticated, error, clearError } = useAuth();
   const { addToast } = useToast();
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -56,7 +56,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     try {
@@ -67,7 +67,7 @@ export default function LoginPage() {
       });
     } catch (error: any) {
       const errorMessage = formatError(error);
-      
+
       if (error.type === 'validation' && error.errors) {
         setFormErrors(error.errors);
       } else {
@@ -89,22 +89,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
-      
-      <div className="w-full max-w-md">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-lg shadow-blue-600/25 mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            SecureAuth
-          </h1>
-          <p className="text-gray-600 text-sm mt-1">Enterprise Authentication Platform</p>
-        </div>
 
-        <Card variant="glass" className="backdrop-blur-xl border-white/20">
+      <div className="w-full max-w-md">
+        <Card variant="glass" className="backdrop-blur-sm border-white/20">
           <CardHeader className="text-center pb-6">
             <CardTitle className="text-2xl font-bold text-gray-900">
               Welcome back
@@ -205,20 +192,6 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-gray-500">
-            Protected by enterprise-grade security
-          </p>
-          <div className="flex items-center justify-center mt-2 space-x-4 text-xs text-gray-400">
-            <Link href="#" className="hover:text-gray-600 transition-colors">Privacy</Link>
-            <span>•</span>
-            <Link href="#" className="hover:text-gray-600 transition-colors">Terms</Link>
-            <span>•</span>
-            <Link href="#" className="hover:text-gray-600 transition-colors">Support</Link>
-          </div>
-        </div>
       </div>
     </div>
   );
