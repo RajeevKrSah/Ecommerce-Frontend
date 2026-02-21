@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import MainLayout from '@/components/layouts/MainLayout';
 import { paymentService } from '@/services/payment.service';
 import Button from '@/components/ui/Button';
 
@@ -153,32 +154,37 @@ export default function PaymentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Initializing secure payment...</p>
+      <MainLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Initializing secure payment...</p>
+          </div>
         </div>
-      </div>
+      </MainLayout>
     );
   }
 
   if (error || !clientSecret || !expiresAt) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Error</h1>
-          <p className="text-gray-600 mb-6">{error || 'Unable to initialize payment'}</p>
-          <Button onClick={() => router.push(`/orders/${orderId}`)}>
-            View Order
-          </Button>
+      <MainLayout>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Error</h1>
+            <p className="text-gray-600 mb-6">{error || 'Unable to initialize payment'}</p>
+            <Button onClick={() => router.push(`/orders/${orderId}`)}>
+              View Order
+            </Button>
+          </div>
         </div>
-      </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <MainLayout>
+      <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="mb-6">
@@ -212,7 +218,8 @@ export default function PaymentPage() {
             <p className="text-xs text-gray-600">Secure Payments</p>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }

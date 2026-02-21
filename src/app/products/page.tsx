@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import MainLayout from '@/components/layouts/MainLayout';
 import { productService } from '@/services/product.service';
 import { Product, Category } from '@/types/product';
 
@@ -63,9 +64,10 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Products</h1>
+    <MainLayout>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4 md:px-12 lg:px-24">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Products</h1>
 
         {/* Search and Filters */}
         <div className="mb-8 space-y-4">
@@ -205,7 +207,8 @@ export default function ProductsPage() {
             )}
           </>
         )}
+        </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }

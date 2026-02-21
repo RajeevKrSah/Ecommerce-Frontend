@@ -1,7 +1,3 @@
-
-
-
-
 "use client";
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +5,6 @@ import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useEffect, useState } from "react";
 import {
-    FiPhoneCall,
     FiSearch,
     FiHeart,
     FiMenu,
@@ -58,21 +53,6 @@ export default function Nav() {
 
     return (
         <header className="w-full">
-
-            {/* ================= TOP BAR ================= */}
-            <div className="bg-[#3a3a3a] text-gray-300 text-sm">
-                <div className="container mx-auto px-4 md:px-12 lg:px-24 py-2 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <FiPhoneCall className="text-yellow-400" />
-                        <span>Call : +0123 456 789</span>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                        <span className="cursor-pointer">Sign in / Sign up</span>
-                    </div>
-                </div>
-            </div>
-
             {/* ================= MAIN HEADER ================= */}
             <div className="bg-[#2f2f2f]">
                 <div className="container mx-auto px-4 md:px-12 lg:px-24 py-5 flex items-center justify-between gap-6">
@@ -160,11 +140,10 @@ export default function Nav() {
                     <div className="relative transition-all duration-300 max-w-md">
                         <button
                             onClick={() => setOpen(!open)}
-                            className={`flex items-center gap-3 font-medium transition-all duration-300 px-4 py-4 -mx-4 ${
-                                open 
-                                    ? "text-yellow-500" 
+                            className={`flex items-center gap-3 font-medium transition-all duration-300 px-4 py-4 -mx-4 ${open
+                                    ? "text-yellow-500"
                                     : "text-gray-700 hover:text-yellow-500"
-                            }`}
+                                }`}
                         >
                             {open ? (
                                 <FiX className="cursor-pointer" size={16} />
@@ -172,11 +151,10 @@ export default function Nav() {
                                 <FiMenu size={16} />
                             )}
                             Browse Categories
-                            <FiChevronDown 
-                                size={14} 
-                                className={`transition-transform duration-300 ${
-                                    open ? "rotate-180" : ""
-                                }`}
+                            <FiChevronDown
+                                size={14}
+                                className={`transition-transform duration-300 ${open ? "rotate-180" : ""
+                                    }`}
                             />
                         </button>
 
@@ -207,20 +185,18 @@ export default function Nav() {
                                     key={item.name}
                                     href={item.href}
                                     onClick={() => setActiveTab(item.name)}
-                                    className={`flex items-center gap-10 cursor-pointer transition-all duration-300 ease-in-out relative group ${
-                                        activeTab === item.name
+                                    className={`flex items-center gap-10 cursor-pointer transition-all duration-300 ease-in-out relative group ${activeTab === item.name
                                             ? "text-yellow-500"
                                             : "hover:text-yellow-500 text-gray-700"
-                                    }`}
+                                        }`}
                                 >
                                     <span className="relative z-10">{item.name}</span>
                                     {/* Active Tab Indicator */}
                                     <div
-                                        className={`absolute -bottom-4 left-0 w-full h-0.5 bg-yellow-500 transform transition-all duration-300 ease-out origin-left ${
-                                            activeTab === item.name
+                                        className={`absolute -bottom-4 left-0 w-full h-0.5 bg-yellow-500 transform transition-all duration-300 ease-out origin-left ${activeTab === item.name
                                                 ? "scale-x-100"
                                                 : "scale-x-0 group-hover:scale-x-100"
-                                        }`}
+                                            }`}
                                     />
                                 </Link>
                             )
