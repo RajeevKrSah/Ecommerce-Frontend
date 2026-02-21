@@ -2,51 +2,135 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
-import { adminService } from '@/services/admin.service';
-import { User } from '@/types/auth';
-import Button from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { adminService } from '@/services/admin.service';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role?: string;
+  created_at?: string;
+}
+
+interface EditModalProps {
+  user: User;
+  onClose: () => void;
+  onSave: (user: User) => void;
+}
+
+function EditUserModal({ user, onClose, onSave }: EditModalProps) {
+  const [formData, setFormData] = useState({
+    name: user.name,
+    email: user.email,
+    role: user.role || 'user',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updated = await adminService.updateUser(user.id, formData);
+      onSave(updated);
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Edit User</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminUsersPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { addToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    total: 0,
-  });
-  const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || user?.role !== 'admin')) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, authLoading, user, router]);
+    fetchUsers();
+  }, []);
 
-  const fetchUsers = async (page = 1) => {
-    if (!isAuthenticated || user?.role !== 'admin') return;
-    setIsLoading(true);
+  const fetchUsers = async () => {
     try {
-      const data = await adminService.getUsers({
-        search,
-        role: roleFilter,
-        page,
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/users`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
       });
-      setUsers(data.data);
-      setPagination({
-        current_page: data.current_page,
-        last_page: data.last_page,
-        total: data.total,
-      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login');
+          return;
+        }
+        throw new Error('Failed to fetch users');
+      }
+
+      const data = await response.json();
+      setUsers(data.users.data || data.users);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       addToast({
@@ -54,200 +138,192 @@ export default function AdminUsersPage() {
         message: 'Failed to load users',
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, [isAuthenticated, user, roleFilter]);
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(search.toLowerCase()) ||
+    user.email.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchUsers(1);
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
   };
 
-  const handleRoleUpdate = async (userId: number, newRole: 'user' | 'admin') => {
-    if (userId === user?.id) {
-      addToast({
-        type: 'error',
-        message: 'You cannot change your own role',
-      });
+  const handleSave = (updatedUser: User) => {
+    setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setEditingUser(null);
+    addToast({
+      type: 'success',
+      message: 'User updated successfully',
+    });
+  };
+
+  const handleDelete = async (user: User) => {
+    if (!confirm(`Are you sure you want to delete user "${user.name}"?`)) {
       return;
     }
 
-    setUpdatingUserId(userId);
     try {
-      await adminService.updateUserRole(userId, newRole);
+      await adminService.deleteUser(user.id);
+      setUsers(users.filter(u => u.id !== user.id));
       addToast({
         type: 'success',
-        message: 'User role updated successfully',
+        message: 'User deleted successfully',
       });
-      fetchUsers(pagination.current_page);
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Failed to delete user:', error);
       addToast({
         type: 'error',
-        message: error.response?.data?.message || 'Failed to update user role',
+        message: 'Failed to delete user',
       });
-    } finally {
-      setUpdatingUserId(null);
     }
   };
 
-  if (authLoading || isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading users...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-600 mt-1">Manage user accounts and permissions</p>
-          </div>
-          <Link href="/admin">
-            <Button variant="outline">Back to Dashboard</Button>
-          </Link>
+    <>
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleSave}
+        />
+      )}
+      <div className="p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+        <p className="text-gray-600 mt-1">Manage and monitor user accounts</p>
+      </div>
+
+      {/* Search */}
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search users by name or email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Total Users</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{users.length}</p>
         </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Admin Users</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">
+            {users.filter(u => u.role === 'admin').length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Regular Users</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">
+            {users.filter(u => u.role !== 'admin').length}
+          </p>
+        </div>
+      </div>
 
-        {/* Search and Filter */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <form onSubmit={handleSearch} className="flex gap-4 mb-4">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Button type="submit">Search</Button>
-            </form>
-
-            <div className="flex gap-2">
-              {['all', 'user', 'admin'].map((role) => (
-                <button
-                  key={role}
-                  onClick={() => setRoleFilter(role)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    roleFilter === role
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  {role.charAt(0).toUpperCase() + role.slice(1)}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Users Table */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Joined
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-semibold text-white">
-                              {u.name.charAt(0).toUpperCase()}
+      {/* Users Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Joined
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    No users found
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                            <span className="text-sm font-medium text-white">
+                              {user.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{u.name}</div>
-                            {u.id === user?.id && (
-                              <div className="text-xs text-gray-500">(You)</div>
-                            )}
-                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{u.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={u.role === 'admin' ? 'success' : 'default'}>
-                          {u.role?.toUpperCase() || 'USER'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <select
-                          value={u.role || 'user'}
-                          onChange={(e) => handleRoleUpdate(u.id, e.target.value as 'user' | 'admin')}
-                          disabled={updatingUserId === u.id || u.id === user?.id}
-                          className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="user">User</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {users.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500">No users found</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Pagination */}
-        {pagination.last_page > 1 && (
-          <div className="mt-6 flex justify-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => fetchUsers(pagination.current_page - 1)}
-              disabled={pagination.current_page === 1}
-            >
-              Previous
-            </Button>
-            <span className="px-4 py-2 text-gray-700">
-              Page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => fetchUsers(pagination.current_page + 1)}
-              disabled={pagination.current_page === pagination.last_page}
-            >
-              Next
-            </Button>
-          </div>
-        )}
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                          <div className="text-sm text-gray-500">ID: {user.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{user.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.role === 'admin'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {user.role || 'user'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(user)}
+                        className="text-blue-600 hover:text-yellow-900 mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

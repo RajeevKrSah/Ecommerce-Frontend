@@ -2,212 +2,299 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/Toast';
 import { adminService } from '@/services/admin.service';
-import { Product } from '@/types/product';
-import Button from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
+
+interface Product {
+  id: number;
+  name: string;
+  sku: string;
+  stock_quantity: number;
+  in_stock: boolean;
+  category?: {
+    name: string;
+  };
+}
+
+interface StockModalProps {
+  product: Product;
+  onClose: () => void;
+  onSave: (product: Product) => void;
+}
+
+function UpdateStockModal({ product, onClose, onSave }: StockModalProps) {
+  const [stockQuantity, setStockQuantity] = useState(product.stock_quantity);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updated = await adminService.updateStock(product.id, stockQuantity);
+      onSave(updated);
+    } catch (error) {
+      console.error('Failed to update stock:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Update Stock</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {product.name}
+            </label>
+            <p className="text-sm text-gray-500 mb-2">SKU: {product.sku}</p>
+            <input
+              type="number"
+              min="0"
+              value={stockQuantity}
+              onChange={(e) => setStockQuantity(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Current stock: {product.stock_quantity} units
+            </p>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+            >
+              {saving ? 'Updating...' : 'Update Stock'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminInventoryPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
-  const [outOfStockProducts, setOutOfStockProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { addToast } = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [updatingProduct, setUpdatingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || user?.role !== 'admin')) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, authLoading, user, router]);
+    fetchProducts();
+  }, []);
 
-  useEffect(() => {
-    const fetchInventory = async () => {
-      if (!isAuthenticated || user?.role !== 'admin') return;
-      setIsLoading(true);
-      try {
-        const [lowStock, outOfStock] = await Promise.all([
-          adminService.getProducts({ stock_status: 'low' }),
-          adminService.getProducts({ stock_status: 'out' }),
-        ]);
-        setLowStockProducts(lowStock.data);
-        setOutOfStockProducts(outOfStock.data);
-      } catch (error) {
-        console.error('Failed to fetch inventory:', error);
-      } finally {
-        setIsLoading(false);
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login');
+          return;
+        }
+        throw new Error('Failed to fetch products');
       }
-    };
 
-    fetchInventory();
-  }, [isAuthenticated, user]);
+      const data = await response.json();
+      setProducts(data.products.data || data.products);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+      addToast({
+        type: 'error',
+        message: 'Failed to load inventory',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (authLoading || isLoading) {
+  const filteredProducts = products.filter(product => {
+    if (filter === 'out_of_stock') return !product.in_stock;
+    if (filter === 'low_stock') return product.stock_quantity > 0 && product.stock_quantity <= 10;
+    if (filter === 'in_stock') return product.in_stock && product.stock_quantity > 10;
+    return true;
+  });
+
+  const handleUpdateStock = (product: Product) => {
+    setUpdatingProduct(product);
+  };
+
+  const handleSave = (updatedProduct: Product) => {
+    setProducts(products.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    setUpdatingProduct(null);
+    addToast({
+      type: 'success',
+      message: 'Stock updated successfully',
+    });
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading inventory...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Inventory Control</h1>
-            <p className="text-gray-600 mt-1">Monitor stock levels and alerts</p>
-          </div>
-          <div className="flex gap-3">
-            <Link href="/admin/products">
-              <Button variant="outline">Manage Products</Button>
-            </Link>
-            <Link href="/admin">
-              <Button variant="outline">Back to Dashboard</Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                  <p className="text-3xl font-bold text-red-600 mt-2">
-                    {outOfStockProducts.length}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                  <p className="text-3xl font-bold text-orange-600 mt-2">
-                    {lowStockProducts.length}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Alerts</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {outOfStockProducts.length + lowStockProducts.length}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Out of Stock Products */}
-        {outOfStockProducts.length > 0 && (
-          <Card className="mb-8">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <span className="h-3 w-3 bg-red-500 rounded-full animate-pulse"></span>
-                  Out of Stock Products
-                </h2>
-                <Badge variant="error">{outOfStockProducts.length} items</Badge>
-              </div>
-              <div className="space-y-3">
-                {outOfStockProducts.map((product) => (
-                  <div key={product.id} className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">{product.name}</p>
-                      <p className="text-sm text-gray-600">SKU: {product.sku}</p>
-                    </div>
-                    <div className="text-right mr-4">
-                      <p className="text-sm font-medium text-red-600">Stock: 0</p>
-                      <p className="text-sm text-gray-600">${product.price}</p>
-                    </div>
-                    <Link href="/admin/products">
-                      <Button size="sm" variant="outline">Restock</Button>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Low Stock Products */}
-        {lowStockProducts.length > 0 && (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <span className="h-3 w-3 bg-orange-500 rounded-full animate-pulse"></span>
-                  Low Stock Products
-                </h2>
-                <Badge variant="warning">{lowStockProducts.length} items</Badge>
-              </div>
-              <div className="space-y-3">
-                {lowStockProducts.map((product) => (
-                  <div key={product.id} className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">{product.name}</p>
-                      <p className="text-sm text-gray-600">SKU: {product.sku}</p>
-                    </div>
-                    <div className="text-right mr-4">
-                      <p className="text-sm font-medium text-orange-600">
-                        Stock: {product.stock_quantity}
-                      </p>
-                      <p className="text-sm text-gray-600">${product.price}</p>
-                    </div>
-                    <Link href="/admin/products">
-                      <Button size="sm" variant="outline">Update</Button>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* No Alerts */}
-        {outOfStockProducts.length === 0 && lowStockProducts.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">All Good!</h3>
-              <p className="text-gray-600">No inventory alerts at this time</p>
-            </CardContent>
-          </Card>
-        )}
+    <>
+      {updatingProduct && (
+        <UpdateStockModal
+          product={updatingProduct}
+          onClose={() => setUpdatingProduct(null)}
+          onSave={handleSave}
+        />
+      )}
+      <div className="p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
+        <p className="text-gray-600 mt-1">Monitor and manage product stock levels</p>
       </div>
-    </div>
+
+      {/* Filter */}
+      <div className="mb-6">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Products</option>
+          <option value="in_stock">In Stock</option>
+          <option value="low_stock">Low Stock (≤10)</option>
+          <option value="out_of_stock">Out of Stock</option>
+        </select>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Total Products</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{products.length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">In Stock</p>
+          <p className="text-3xl font-bold text-green-600 mt-2">
+            {products.filter(p => p.in_stock && p.stock_quantity > 10).length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Low Stock</p>
+          <p className="text-3xl font-bold text-blue-600 mt-2">
+            {products.filter(p => p.stock_quantity > 0 && p.stock_quantity <= 10).length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+          <p className="text-3xl font-bold text-red-600 mt-2">
+            {products.filter(p => !p.in_stock).length}
+          </p>
+        </div>
+      </div>
+
+      {/* Inventory Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  SKU
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Stock
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                    No products found
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((product) => {
+                  const stockStatus = !product.in_stock
+                    ? { label: 'Out of Stock', color: 'bg-red-100 text-red-800' }
+                    : product.stock_quantity <= 10
+                    ? { label: 'Low Stock', color: 'bg-yellow-100 text-yellow-800' }
+                    : { label: 'In Stock', color: 'bg-green-100 text-green-800' };
+
+                  return (
+                    <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{product.sku}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {product.category?.name || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {product.stock_quantity} units
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${stockStatus.color}`}>
+                          {stockStatus.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => handleUpdateStock(product)}
+                          className="text-blue-600 hover:text-yellow-900"
+                        >
+                          Update Stock
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+    </>
   );
 }

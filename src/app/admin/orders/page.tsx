@@ -2,51 +2,156 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
-import { adminService, AdminOrdersResponse } from '@/services/admin.service';
-import { Order } from '@/types/order';
-import Button from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { adminService } from '@/services/admin.service';
+
+interface Order {
+  id: number;
+  order_number: string;
+  user?: {
+    name: string;
+    email: string;
+  };
+  status: string;
+  payment_status: string;
+  total: number | string;
+  created_at: string;
+  items?: any[];
+}
+
+interface StatusModalProps {
+  order: Order;
+  onClose: () => void;
+  onSave: (order: Order) => void;
+}
+
+function UpdateStatusModal({ order, onClose, onSave }: StatusModalProps) {
+  const { addToast } = useToast();
+  const [status, setStatus] = useState(order.status);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      console.log('Updating order status:', order.id, 'to:', status);
+      const updated = await adminService.updateOrderStatus(order.id, status);
+      console.log('Update response:', updated);
+      
+      if (!updated) {
+        throw new Error('No response from server');
+      }
+      
+      onSave(updated);
+      addToast({
+        type: 'success',
+        message: 'Order status updated successfully',
+      });
+      onClose();
+    } catch (error: any) {
+      console.error('Failed to update order status:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
+      let errorMessage = 'Failed to update order status';
+      
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        const firstError = Object.values(errors)[0];
+        errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      addToast({
+        type: 'error',
+        message: errorMessage,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Update Order Status</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Order #{order.order_number}
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+            >
+              {saving ? 'Updating...' : 'Update Status'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminOrdersPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { addToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
-  const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    total: 0,
-  });
-  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [updatingOrder, setUpdatingOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, authLoading, router]);
+    fetchOrders();
+  }, []);
 
-  const fetchOrders = async (page = 1) => {
-    if (!isAuthenticated) return;
-    setIsLoading(true);
+  const fetchOrders = async () => {
     try {
-      const data: AdminOrdersResponse = await adminService.getOrders({
-        status: filter,
-        search,
-        page,
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
       });
-      setOrders(data.data);
-      setPagination({
-        current_page: data.current_page,
-        last_page: data.last_page,
-        total: data.total,
-      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login');
+          return;
+        }
+        throw new Error('Failed to fetch orders');
+      }
+
+      const data = await response.json();
+      setOrders(data.orders.data || data.orders);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       addToast({
@@ -54,226 +159,200 @@ export default function AdminOrdersPage() {
         message: 'Failed to load orders',
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchOrders();
-  }, [isAuthenticated, filter]);
+  const filteredOrders = statusFilter === 'all'
+    ? orders
+    : orders.filter(order => order.status === statusFilter);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchOrders(1);
+  const handleUpdateStatus = (order: Order) => {
+    setUpdatingOrder(order);
   };
 
-  const handleStatusUpdate = async (orderId: number, newStatus: string) => {
-    setUpdatingOrderId(orderId);
-    
-    // Optimistic update - update UI immediately
-    setOrders(prevOrders => 
-      prevOrders.map(order => 
-        order.id === orderId ? { ...order, status: newStatus as any } : order
-      )
-    );
-
-    try {
-      await adminService.updateOrderStatus(orderId, newStatus);
-      addToast({
-        type: 'success',
-        message: 'Order status updated successfully',
-      });
-      // Refresh to get latest data from server
-      await fetchOrders(pagination.current_page);
-    } catch (error: any) {
-      // Revert optimistic update on error
-      await fetchOrders(pagination.current_page);
-      addToast({
-        type: 'error',
-        message: error.response?.data?.message || 'Failed to update order status',
-      });
-    } finally {
-      setUpdatingOrderId(null);
-    }
+  const handleSave = (updatedOrder: Order) => {
+    setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    setUpdatingOrder(null);
+    addToast({
+      type: 'success',
+      message: 'Order status updated successfully',
+    });
   };
 
-  if (authLoading || isLoading) {
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      processing: 'bg-blue-100 text-blue-800',
+      shipped: 'bg-purple-100 text-purple-800',
+      delivered: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading orders...</p>
+        </div>
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, 'default' | 'success' | 'warning' | 'error'> = {
-      pending: 'warning',
-      processing: 'default',
-      shipped: 'default',
-      delivered: 'success',
-      cancelled: 'error',
-    };
-    return colors[status] || 'default';
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
-            <p className="text-gray-600 mt-1">Manage and track all customer orders</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => fetchOrders(pagination.current_page)}
-              disabled={isLoading}
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </Button>
-            <Link href="/dashboard">
-              <Button variant="outline">Back to Dashboard</Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Search and Filter */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <form onSubmit={handleSearch} className="flex-1 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Search by order number, customer name, or email..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <Button type="submit">Search</Button>
-              </form>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-              {['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilter(status)}
-                  className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                    filter === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Orders List */}
-        {orders.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-gray-600">No orders found</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="space-y-4">
-              {orders.map((order) => (
-                <Card key={order.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            #{order.order_number}
-                          </h3>
-                          <Badge variant={getStatusColor(order.status)}>
-                            {order.status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                          <div>
-                            <p><span className="font-medium">Customer:</span> {order.shipping_name}</p>
-                            <p><span className="font-medium">Email:</span> {order.shipping_email}</p>
-                          </div>
-                          <div>
-                            <p><span className="font-medium">Date:</span> {new Date(order.created_at).toLocaleDateString()}</p>
-                            <p><span className="font-medium">Total:</span> ${Number(order.total).toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <select
-                          value={order.status}
-                          onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
-                          disabled={updatingOrderId === order.id}
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="processing">Processing</option>
-                          <option value="shipped">Shipped</option>
-                          <option value="delivered">Delivered</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                        <Link href={`/orders/${order.id}`}>
-                          <Button variant="outline" className="w-full">View Details</Button>
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Order Items Preview */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Items:</p>
-                      <div className="flex gap-2 overflow-x-auto">
-                        {order.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex-shrink-0 text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded"
-                          >
-                            {item.product_name} × {item.quantity}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {pagination.last_page > 1 && (
-              <div className="mt-6 flex justify-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => fetchOrders(pagination.current_page - 1)}
-                  disabled={pagination.current_page === 1}
-                >
-                  Previous
-                </Button>
-                <span className="px-4 py-2 text-gray-700">
-                  Page {pagination.current_page} of {pagination.last_page}
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={() => fetchOrders(pagination.current_page + 1)}
-                  disabled={pagination.current_page === pagination.last_page}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+    <>
+      {updatingOrder && (
+        <UpdateStatusModal
+          order={updatingOrder}
+          onClose={() => setUpdatingOrder(null)}
+          onSave={handleSave}
+        />
+      )}
+      <div className="p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
+        <p className="text-gray-600 mt-1">Track and manage customer orders</p>
       </div>
-    </div>
+
+      {/* Filter */}
+      <div className="mb-6">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Orders</option>
+          <option value="pending">Pending</option>
+          <option value="processing">Processing</option>
+          <option value="shipped">Shipped</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Total Orders</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{orders.length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Pending</p>
+          <p className="text-3xl font-bold text-blue-600 mt-2">
+            {orders.filter(o => o.status === 'pending').length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Processing</p>
+          <p className="text-3xl font-bold text-blue-600 mt-2">
+            {orders.filter(o => o.status === 'processing').length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Delivered</p>
+          <p className="text-3xl font-bold text-green-600 mt-2">
+            {orders.filter(o => o.status === 'delivered').length}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm font-medium text-gray-600">Cancelled</p>
+          <p className="text-3xl font-bold text-red-600 mt-2">
+            {orders.filter(o => o.status === 'cancelled').length}
+          </p>
+        </div>
+      </div>
+
+      {/* Orders Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Order
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Customer
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    No orders found
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        #{order.order_number}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {order.items?.length || 0} items
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{order.user?.name}</div>
+                      <div className="text-sm text-gray-500">{order.user?.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        order.payment_status === 'paid'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {order.payment_status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${Number(order.total).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleUpdateStatus(order)}
+                        className="text-blue-600 hover:text-yellow-900"
+                      >
+                        Update Status
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+    </>
   );
 }

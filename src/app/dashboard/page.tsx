@@ -53,6 +53,13 @@ export default function DashboardPage() {
     }
   }, [isLoading, isAuthenticated, router]);
 
+  // Redirect admins to admin dashboard
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.role === 'admin') {
+      router.push('/admin/dashboard');
+    }
+  }, [isLoading, isAuthenticated, user, router]);
+
   // Fetch orders
   useEffect(() => {
     const fetchOrders = async () => {
