@@ -354,30 +354,6 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
-
-          <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-            <div className="space-y-2">
-              <Link
-                href="/admin/products"
-                className="block w-full text-left px-4 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all"
-              >
-                <span className="text-sm font-medium">Manage Products</span>
-              </Link>
-              <Link
-                href="/admin/orders"
-                className="block w-full text-left px-4 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all"
-              >
-                <span className="text-sm font-medium">View Orders</span>
-              </Link>
-              <Link
-                href="/admin/users"
-                className="block w-full text-left px-4 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all"
-              >
-                <span className="text-sm font-medium">Manage Users</span>
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

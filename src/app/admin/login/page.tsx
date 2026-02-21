@@ -14,11 +14,11 @@ export default function AdminLoginPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<any>({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev: any) => ({ ...prev, [name]: '' }));
     }
@@ -30,12 +30,10 @@ export default function AdminLoginPage() {
     setErrors({});
 
     try {
-      // Get CSRF token first
       await fetch(`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}/sanctum/csrf-cookie`, {
         credentials: 'include',
       });
 
-      // Then login
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/auth/login`, {
         method: 'POST',
         headers: {
@@ -43,7 +41,7 @@ export default function AdminLoginPage() {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
-        credentials: 'include', // Important for cookies
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -60,7 +58,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Store admin data in localStorage (not token, just user info)
       localStorage.setItem('admin_data', JSON.stringify(data.admin));
 
       addToast({
@@ -68,7 +65,6 @@ export default function AdminLoginPage() {
         message: 'Login successful!',
       });
 
-      // Redirect to dashboard
       router.push('/admin/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
@@ -82,30 +78,23 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white border border-gray-200 rounded-lg p-8">
+          <div className="mb-8 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-900 rounded-xl mb-4">
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Portal</h1>
+            <p className="text-gray-600 mt-2">Sign in to access the admin dashboard</p>
           </div>
-          <h2 className="text-3xl font-bold text-white">Admin Portal</h2>
-          <p className="mt-2 text-sm text-gray-400">
-            Sign in to access the admin dashboard
-          </p>
-        </div>
 
-        {/* Login Form */}
-        <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email */}
+          <form onSubmit={handleSubmit} className="space-y-5 text-gray-600">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email Address
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email
               </label>
               <input
                 id="email"
@@ -115,84 +104,91 @@ export default function AdminLoginPage() {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-600 bg-gray-700 placeholder-gray-400 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all"
-                placeholder="admin@example.com"
+                className={`w-full px-4 py-2.5 text-sm border rounded-lg transition-colors outline-none ${
+                  errors.email
+                    ? 'border-red-300'
+                    : 'border-gray-300 focus:border-slate-500'
+                }`}
+                placeholder="Enter your email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-400">{errors.email[0]}</p>
+                <p className="mt-1.5 text-sm text-red-600">{errors.email[0]}</p>
               )}
             </div>
 
-            {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-600 bg-gray-700 placeholder-gray-400 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 text-sm border rounded-lg transition-colors pr-11 outline-none ${
+                    errors.password
+                      ? 'border-red-300'
+                      : 'border-gray-300 focus:border-slate-500'
+                  }`}
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-400">{errors.password[0]}</p>
+                <p className="mt-1.5 text-sm text-red-600">{errors.password[0]}</p>
               )}
             </div>
 
-            {/* Submit Button */}
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-              >
-                {isLoading ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Signing in...
-                  </span>
-                ) : (
-                  'Sign in to Admin Portal'
-                )}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-slate-900 text-white py-2.5 text-sm px-4 rounded-lg font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? 'Signing in...' : 'Sign in to Admin Portal'}
+            </button>
           </form>
 
-          {/* Divider */}
-          <div className="mt-6 pt-6 border-t border-gray-700">
-            <div className="text-center">
-              <Link href="/login" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
-                ← Back to User Login
-              </Link>
-            </div>
-          </div>
-
-          {/* Security Notice */}
-          <div className="mt-6 bg-gray-900 rounded-lg p-4 border border-gray-700">
-            <div className="flex items-start">
-              <svg className="w-5 h-5 text-yellow-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              <div>
-                <p className="text-xs text-gray-400">
-                  This is a secure admin area. All login attempts are monitored and logged.
-                </p>
-              </div>
+              <p className="text-sm text-amber-800">
+                This is a secure admin area. All login attempts are monitored and logged.
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="text-center text-xs text-gray-500">
-          <p>Protected by enterprise-grade security</p>
+          <div className="mt-6 text-center">
+            <Link
+              href="/login"
+              className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to User Login
+            </Link>
+          </div>
         </div>
       </div>
     </div>
