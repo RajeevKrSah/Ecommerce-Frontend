@@ -150,7 +150,12 @@ export const adminService = {
     // Append product data
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        formData.append(key, value.toString());
+        // Convert booleans to 1 or 0 for Laravel
+        if (typeof value === 'boolean') {
+          formData.append(key, value ? '1' : '0');
+        } else {
+          formData.append(key, value.toString());
+        }
       }
     });
 
@@ -192,7 +197,12 @@ export const adminService = {
         // Append product data
         Object.entries(data).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
-            formData.append(key, value.toString());
+            // Convert booleans to 1 or 0 for Laravel
+            if (typeof value === 'boolean') {
+              formData.append(key, value ? '1' : '0');
+            } else {
+              formData.append(key, value.toString());
+            }
           }
         });
 
@@ -293,5 +303,65 @@ export const adminService = {
 
   async deleteUser(userId: number): Promise<void> {
     await adminApi.delete(`/admin/users/${userId}`);
+  },
+
+  // Colors management
+  async getColors(): Promise<Array<{ id: number; name: string; code: string; hex_code: string; sort_order: number; is_active: boolean; created_at?: string; updated_at?: string }>> {
+    const response = await adminApi.get('/admin/colors');
+    return response.data;
+  },
+
+  async createColor(data: {
+    name: string;
+    code: string;
+    hex_code: string;
+    sort_order?: number;
+  }): Promise<any> {
+    const response = await adminApi.post('/admin/colors', data);
+    return response.data;
+  },
+
+  async updateColor(colorId: number, data: Partial<{
+    name: string;
+    code: string;
+    hex_code: string;
+    sort_order: number;
+    is_active: boolean;
+  }>): Promise<any> {
+    const response = await adminApi.put(`/admin/colors/${colorId}`, data);
+    return response.data;
+  },
+
+  async deleteColor(colorId: number): Promise<void> {
+    await adminApi.delete(`/admin/colors/${colorId}`);
+  },
+
+  // Sizes management
+  async getSizes(): Promise<Array<{ id: number; name: string; code: string; sort_order: number; is_active: boolean; created_at?: string; updated_at?: string }>> {
+    const response = await adminApi.get('/admin/sizes');
+    return response.data;
+  },
+
+  async createSize(data: {
+    name: string;
+    code: string;
+    sort_order?: number;
+  }): Promise<any> {
+    const response = await adminApi.post('/admin/sizes', data);
+    return response.data;
+  },
+
+  async updateSize(sizeId: number, data: Partial<{
+    name: string;
+    code: string;
+    sort_order: number;
+    is_active: boolean;
+  }>): Promise<any> {
+    const response = await adminApi.put(`/admin/sizes/${sizeId}`, data);
+    return response.data;
+  },
+
+  async deleteSize(sizeId: number): Promise<void> {
+    await adminApi.delete(`/admin/sizes/${sizeId}`);
   },
 };

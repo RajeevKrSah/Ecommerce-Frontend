@@ -80,16 +80,16 @@ export function useCart() {
     }
   }, [isAuthenticated]);
 
-  const addToCart = async (productId: number, quantity: number = 1) => {
+  const addToCart = async (productId: number, quantity: number = 1, variantId?: number) => {
     if (!isAuthenticated) {
       // Add to guest cart (localStorage)
-      const updatedGuestCart = guestCartManager.addItem(productId, quantity);
+      const updatedGuestCart = guestCartManager.addItem(productId, quantity, variantId);
       setGuestCart(updatedGuestCart);
       return null;
     }
 
     try {
-      const updatedCart = await cartService.addToCart(productId, quantity);
+      const updatedCart = await cartService.addToCart(productId, quantity, variantId);
       setCart(updatedCart);
       return updatedCart;
     } catch (error) {

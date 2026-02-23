@@ -18,7 +18,8 @@ export const productService = {
 
   async getProduct(slug: string): Promise<Product> {
     const response = await api.get(`/products/${slug}`);
-    return response.data;
+    // ProductResource wraps the data in a 'data' property
+    return response.data.data || response.data;
   },
 
   async getProductById(id: number): Promise<Product> {

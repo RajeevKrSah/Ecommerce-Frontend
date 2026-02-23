@@ -4,6 +4,7 @@
 export interface GuestCartItem {
   productId: number;
   quantity: number;
+  variantId?: number;
 }
 
 const GUEST_CART_KEY = 'guest_cart';
@@ -23,14 +24,17 @@ export const guestCartManager = {
   },
 
   // Add item to guest cart
-  addItem(productId: number, quantity: number = 1): GuestCartItem[] {
+  addItem(productId: number, quantity: number = 1, variantId?: number): GuestCartItem[] {
     const cart = this.getCart();
-    const existingItem = cart.find(item => item.productId === productId);
+    // Find existing item with same product and variant
+    const existingItem = cart.find(item => 
+      item.productId === productId && item.variantId === variantId
+    );
 
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
-      cart.push({ productId, quantity });
+      cart.push({ productId, quantity, variantId });
     }
 
     this.saveCart(cart);
@@ -38,9 +42,11 @@ export const guestCartManager = {
   },
 
   // Update item quantity
-  updateItem(productId: number, quantity: number): GuestCartItem[] {
+  updateItem(productId: number, quantity: number, variantId?: number): GuestCartItem[] {
     const cart = this.getCart();
-    const item = cart.find(item => item.productId === productId);
+    const item = cart.find(item => 
+      item.productId === productId && item.variantId === variantId
+    );
 
     if (item) {
       item.quantity = quantity;
@@ -51,8 +57,10 @@ export const guestCartManager = {
   },
 
   // Remove item from cart
-  removeItem(productId: number): GuestCartItem[] {
-    const cart = this.getCart().filter(item => item.productId !== productId);
+  removeItem(productId: number, variantId?: number): GuestCartItem[] {
+    const cart = this.getCart().filter(item => 
+      !(item.productId === productId && item.variantId === variantId)
+    );
     this.saveCart(cart);
     return cart;
   },

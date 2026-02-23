@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import MainLayout from '@/components/layouts/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { orderService } from '@/services/order.service';
@@ -48,11 +47,11 @@ export default function CheckoutPage() {
   useEffect(() => {
     const fetchAddresses = async () => {
       if (!isAuthenticated) return;
-      
+
       try {
         const data = await addressService.getAddresses();
         setAddresses(data);
-        
+
         // Auto-select default address
         const defaultAddress = data.find(addr => addr.is_default);
         if (defaultAddress) {
@@ -159,39 +158,33 @@ export default function CheckoutPage() {
 
   if (authLoading || cartLoading || loadingAddresses) {
     return (
-      <MainLayout>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading checkout...</p>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading checkout...</p>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   // Show loading while cart is still undefined/null
   if (!cart) {
     return (
-      <MainLayout>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading cart...</p>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading cart...</p>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   // Only show this after we know cart is loaded and empty
   if (cart.items.length === 0) {
     return (
-      <MainLayout>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </MainLayout>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
@@ -208,9 +201,8 @@ export default function CheckoutPage() {
   };
 
   return (
-    <MainLayout>
-      <div className="min-h-screen bg-gray-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -358,11 +350,10 @@ export default function CheckoutPage() {
                           <div
                             key={address.id}
                             onClick={() => handleAddressSelect(address.id)}
-                            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                              selectedAddressId === address.id
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedAddressId === address.id
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                              }`}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
@@ -619,8 +610,7 @@ export default function CheckoutPage() {
             </Card>
           </div>
         </div>
-        </div>
       </div>
-    </MainLayout>
+    </div>
   );
 }

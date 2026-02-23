@@ -1,3 +1,5 @@
+import { ProductWithVariants, ProductVariant, Attribute } from './variant';
+
 export interface Category {
   id: number;
   name: string;
@@ -19,6 +21,13 @@ export interface ProductImage {
   sort_order: number;
 }
 
+// Legacy color/size support (backward compatible)
+export interface ProductColor {
+  name: string;
+  value: string;
+  hex: string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -38,6 +47,17 @@ export interface Product {
   in_stock: boolean;
   created_at: string;
   updated_at: string;
+  
+  // Variant system support
+  has_variants?: boolean;
+  variants?: ProductVariant[];
+  available_variants?: ProductVariant[];
+  attributes?: Attribute[];
+  total_stock?: number;
+  
+  // Legacy support (backward compatible)
+  sizes?: string[];
+  colors?: ProductColor[];
 }
 
 export interface ProductsResponse {
@@ -47,3 +67,6 @@ export interface ProductsResponse {
   per_page: number;
   total: number;
 }
+
+// Re-export variant types for convenience
+export type { ProductWithVariants, ProductVariant, Attribute };

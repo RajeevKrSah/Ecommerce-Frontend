@@ -1,21 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Baskervville} from "next/font/google";
 import { ToastProvider } from "@/components/ui/Toast";
+import ConditionalLayout from "@/components/layouts/ConditionalLayout";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const baskervville = Baskervville({
+  variable: "--font-baskervville",
   subsets: ["latin"],
+  weight: "400",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
-  title: "Secure Auth App",
-  description: "Modern authentication system with Next.js and Laravel",
+  title: "Poces - Modern E-commerce",
+  description: "Modern e-commerce platform with Next.js and Laravel",
 };
 
 export default function RootLayout({
@@ -26,11 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${baskervville.variable} antialiased`}
         suppressHydrationWarning
       >
         <ToastProvider>
-          {children}
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
         </ToastProvider>
       </body>
     </html>

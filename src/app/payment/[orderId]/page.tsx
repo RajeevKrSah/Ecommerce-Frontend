@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import MainLayout from '@/components/layouts/MainLayout';
 import { paymentService } from '@/services/payment.service';
 import Button from '@/components/ui/Button';
 
@@ -74,14 +73,12 @@ function PaymentForm({ orderId, clientSecret, expiresAt }: { orderId: string; cl
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Timer Display */}
-      <div className={`p-4 rounded-lg border-2 ${
-        timeRemaining === 'Expired' ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-300'
-      }`}>
+      <div className={`p-4 rounded-lg border-2 ${timeRemaining === 'Expired' ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-300'
+        }`}>
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">Time Remaining:</span>
-          <span className={`text-2xl font-bold ${
-            timeRemaining === 'Expired' ? 'text-red-600' : 'text-blue-600'
-          }`}>
+          <span className={`text-2xl font-bold ${timeRemaining === 'Expired' ? 'text-red-600' : 'text-blue-600'
+            }`}>
             {timeRemaining}
           </span>
         </div>
@@ -91,7 +88,7 @@ function PaymentForm({ orderId, clientSecret, expiresAt }: { orderId: string; cl
       </div>
 
       <PaymentElement />
-      
+
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
           {error}
@@ -154,37 +151,32 @@ export default function PaymentPage() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Initializing secure payment...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Initializing secure payment...</p>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   if (error || !clientSecret || !expiresAt) {
     return (
-      <MainLayout>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-            <div className="text-red-500 text-5xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Error</h1>
-            <p className="text-gray-600 mb-6">{error || 'Unable to initialize payment'}</p>
-            <Button onClick={() => router.push(`/orders/${orderId}`)}>
-              View Order
-            </Button>
-          </div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Error</h1>
+          <p className="text-gray-600 mb-6">{error || 'Unable to initialize payment'}</p>
+          <Button onClick={() => router.push(`/orders/${orderId}`)}>
+            View Order
+          </Button>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   return (
-    <MainLayout>
-      <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="mb-6">
@@ -218,8 +210,7 @@ export default function PaymentPage() {
             <p className="text-xs text-gray-600">Secure Payments</p>
           </div>
         </div>
-        </div>
       </div>
-    </MainLayout>
+    </div>
   );
 }

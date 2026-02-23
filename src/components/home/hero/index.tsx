@@ -1,4 +1,3 @@
-import ProductCard from "@/components/common/ProductCard";
 import Image from "next/image";
 
 export default function HeroBanner() {

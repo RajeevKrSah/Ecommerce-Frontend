@@ -1,177 +1,224 @@
-"use client";
+/**
+ * Reusable Product Card Component
+ * Production-ready e-commerce product card with accessibility, performance optimizations
+ */
 
-import { memo, useMemo, useCallback, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { FiHeart, FiShuffle, FiEye } from "react-icons/fi";
-import type { Product } from "@/types/product";
-import { useCart } from "@/hooks/useCart";
+'use client';
+
+import { useState, useCallback, useMemo, memo } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Heart } from 'lucide-react';
+
+interface ProductImage {
+  image_url: string;
+  full_image_url?: string;
+  is_primary?: boolean;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  slug: string;
+  price: number;
+  sale_price?: number;
+  images?: ProductImage[];
+  stock_quantity: number;
+  is_featured?: boolean;
+  created_at?: string;
+}
 
 interface ProductCardProps {
   product: Product;
-  onWishlistClick?: (productId: number) => void;
-  onCompareClick?: (productId: number) => void;
-  onQuickViewClick?: (productId: number) => void;
-  priority?: boolean;
+  variant?: 'default' | 'compact' | 'detailed';
+  showQuickActions?: boolean;
+  onAddToCart?: (productId: number) => void;
+  onAddToWishlist?: (productId: number) => void;
 }
 
-const FALLBACK_IMAGE = "/images/women.jpg";
-const ACTION_ICONS = [
-  { Icon: FiHeart, label: "Add to wishlist", action: "wishlist" },
-  { Icon: FiShuffle, label: "Compare", action: "compare" },
-  { Icon: FiEye, label: "Quick view", action: "quickView" },
-] as const;
-
-function ProductCard({
+const ProductCardComponent: React.FC<ProductCardProps> = ({
   product,
-  onWishlistClick,
-  onCompareClick,
-  onQuickViewClick,
-  priority = false,
-}: ProductCardProps) {
-  const productUrl = `/products/${product.slug}`;
-  const [isAdding, setIsAdding] = useState(false);
-  const { addToCart } = useCart();
+  variant = 'default',
+  showQuickActions = true,
+  onAddToCart,
+  onAddToWishlist,
+}) => {
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  const { hasDiscount, discountPercentage, displayPrice, imageUrl } = useMemo(() => {
-    const hasSale = product.sale_price != null && product.sale_price < product.price;
-    const discount = hasSale && product.sale_price
-      ? Math.round(((product.price - product.sale_price) / product.price) * 100)
+  // Memoized calculations
+  const { price, salePrice, discount, isNew, imageUrl, isOutOfStock } = useMemo(() => {
+    const price = Number(product.price) || 0;
+    const salePrice = product.sale_price ? Number(product.sale_price) : undefined;
+    
+    const discount = salePrice 
+      ? Math.round(((price - salePrice) / price) * 100)
       : 0;
+    
+    const isNew = product.created_at 
+      ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24)) <= 7
+      : false;
+    
+    const imageUrl = product.images?.[0]?.full_image_url || product.images?.[0]?.image_url || '';
+    const isOutOfStock = product.stock_quantity <= 0;
 
-    const price = product.current_price || product.sale_price || product.price;
-    const primaryImage = product.images?.find((img) => img.is_primary) || product.images?.[0];
-    const imgUrl = primaryImage?.image_url || FALLBACK_IMAGE;
-
-    return {
-      hasDiscount: hasSale,
-      discountPercentage: discount,
-      displayPrice: Number(price),
-      imageUrl: imgUrl,
-    };
+    return { price, salePrice, discount, isNew, imageUrl, isOutOfStock };
   }, [product]);
 
-  const priceNum = useMemo(() => Number(product.price), [product.price]);
+  // Event handlers
+  const handleAddToCart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isOutOfStock && onAddToCart) {
+      onAddToCart(product.id);
+    }
+  }, [isOutOfStock, onAddToCart, product.id]);
 
-  const handleActionClick = useCallback(
-    (action: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+  const handleAddToWishlist = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsWishlisted(prev => !prev);
+    if (onAddToWishlist) {
+      onAddToWishlist(product.id);
+    }
+  }, [onAddToWishlist, product.id]);
 
-      switch (action) {
-        case "wishlist":
-          onWishlistClick?.(product.id);
-          break;
-        case "compare":
-          onCompareClick?.(product.id);
-          break;
-        case "quickView":
-          onQuickViewClick?.(product.id);
-          break;
-      }
-    },
-    [product.id, onWishlistClick, onCompareClick, onQuickViewClick]
-  );
-
-  const handleAddToCart = useCallback(
-    async (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (isAdding) return;
-
-      console.log('[ProductCard] Adding to cart, product:', product.id);
-      setIsAdding(true);
-      try {
-        const result = await addToCart(product.id, 1);
-        console.log('[ProductCard] Added to cart successfully, result:', result);
-        // Optional: Show success toast notification
-      } catch (error: any) {
-        console.error('[ProductCard] Failed to add to cart:', error);
-        console.error('[ProductCard] Error details:', error.response?.data || error.message);
-        // Optional: Show error toast notification
-      } finally {
-        setIsAdding(false);
-      }
-    },
-    [product.id, addToCart, isAdding]
-  );
+  const handleImageError = useCallback(() => {
+    setImageError(true);
+  }, []);
 
   return (
-    <article className="group text-gray-600" aria-label={`Product: ${product.name}`}>
-      <div className="relative overflow-hidden rounded-2xl bg-gray-100">
-        {hasDiscount && (
-          <span
-            className="absolute top-4 left-4 z-10 bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full"
-            aria-label={`${discountPercentage}% discount`}
-          >
-            -{discountPercentage}%
-          </span>
+    <article 
+      className="group relative rounded-2xl overflow-hidden bg-white border border-gray-100 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+      aria-label={`${product.name} product card`}
+    >
+      {/* Image Section */}
+      <Link
+        href={`/products/${product.slug}`}
+        className="relative block aspect-[3/4] bg-gray-100 overflow-hidden"
+        aria-label={`View ${product.name} details`}
+      >
+        {imageUrl && !imageError ? (
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            onError={handleImageError}
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <svg 
+              className="w-16 h-16" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={1.5} 
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" 
+              />
+            </svg>
+          </div>
         )}
 
-        <div
-          className="absolute top-4 right-4 z-10 flex flex-col gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          role="group"
-          aria-label="Product actions"
-        >
-          {ACTION_ICONS.map(({ Icon, label, action }) => (
-            <button
-              key={action}
-              onClick={(e) => handleActionClick(action, e)}
-              className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
-              aria-label={label}
-              type="button"
-            >
-              <Icon size={18} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-
-        <Link href={productUrl} aria-label={`View ${product.name} details`}>
-          <div className="relative h-[420px] w-full">
-            <Image
-              src={imageUrl}
-              alt={product.name}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              priority={priority}
-              quality={85}
-            />
+        {/* Out of Stock Overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span className="bg-white text-gray-900 px-4 py-2 rounded-full font-semibold text-sm">
+              Out of Stock
+            </span>
           </div>
-        </Link>
+        )}
 
-        <div className="absolute inset-x-0 bottom-0 bg-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-          <button
-            onClick={handleAddToCart}
-            disabled={isAdding}
-            className="w-full mb-2 bg-white border border-gray-200 rounded-full py-3 text-sm font-medium hover:bg-gray-900 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            type="button"
-            aria-label={`Add ${product.name} to cart`}
-          >
-            {isAdding ? "ADDING..." : "QUICK ADD"}
-          </button>
-        </div>
-      </div>
-
-      <Link href={productUrl} className="block mt-4 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 rounded">
-        <h3 className="text-sm font-medium text-gray-900 line-clamp-2 min-h-[2.5rem]">
-          {product.name}
-        </h3>
-
-        <div className="mt-2 flex items-center gap-3">
-          {hasDiscount && (
-            <span className="text-sm text-gray-400 line-through" aria-label={`Original price $${priceNum.toFixed(2)}`}>
-              ${priceNum.toFixed(2)}
+        {/* Top Badges */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2" aria-label="Product badges">
+          {isNew && (
+            <span className="px-2.5 py-1 text-[10px] font-medium bg-black text-white rounded-full uppercase tracking-wide">
+              New
             </span>
           )}
-          <span className="text-sm font-semibold text-gray-900" aria-label={`Current price $${displayPrice.toFixed(2)}`}>
-            ${displayPrice.toFixed(2)}
-          </span>
+          {discount > 0 && (
+            <span className="px-2.5 py-1 text-[10px] font-medium bg-red-600 text-white rounded-full">
+              -{discount}%
+            </span>
+          )}
         </div>
+
+        {/* Wishlist Button */}
+        {showQuickActions && (
+          <button
+            onClick={handleAddToWishlist}
+            className={`absolute top-4 right-4 w-9 h-9 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+              isWishlisted 
+                ? 'bg-red-50 hover:bg-red-100' 
+                : 'bg-white/80 hover:bg-white'
+            }`}
+            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+            type="button"
+          >
+            <Heart 
+              className={`w-4 h-4 transition-colors ${
+                isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-700'
+              }`}
+            />
+          </button>
+        )}
+
+        {/* Quick View Overlay */}
+        {!isOutOfStock && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-end justify-center pb-6 opacity-0 group-hover:opacity-100 pointer-events-none">
+            <span className="bg-white text-sm font-medium px-6 py-2 rounded-full shadow-md pointer-events-auto">
+              Quick View
+            </span>
+          </div>
+        )}
       </Link>
+
+      {/* Product Info */}
+      <div className="p-5 space-y-2">
+        <Link 
+          href={`/products/${product.slug}`}
+          className="block"
+        >
+          <h3 className="text-sm font-medium text-gray-900 leading-snug line-clamp-2 hover:underline">
+            {product.name}
+          </h3>
+        </Link>
+
+        {/* Price */}
+        <div className="flex items-center gap-2 pt-1">
+          {salePrice ? (
+            <>
+              <span className="text-base font-semibold text-gray-900" aria-label={`Sale price ${salePrice} Dirhams`}>
+                Dhs. {salePrice.toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-400 line-through" aria-label={`Original price ${price} Dirhams`}>
+                {price.toFixed(2)}
+              </span>
+            </>
+          ) : (
+            <span className="text-base font-semibold text-gray-900" aria-label={`Price ${price} Dirhams`}>
+              Dhs. {price.toFixed(2)}
+            </span>
+          )}
+        </div>
+
+        {/* Stock Status */}
+        {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
+          <p className="text-xs text-orange-600 font-medium">
+            Only {product.stock_quantity} left in stock
+          </p>
+        )}
+      </div>
     </article>
   );
-}
+};
 
-export default memo(ProductCard);
+export const ProductCard = memo(ProductCardComponent);
+export default ProductCard;
