@@ -10,6 +10,7 @@ import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useToast } from '@/components/ui/Toast';
 import ProductVariantSelector from '@/components/ProductVariantSelector';
+import ProductReviewsSection from '@/components/reviews/ProductReviewsSection';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -566,6 +567,11 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Reviews Section */}
+        <div className="mt-16 border-t border-neutral-200 pt-12">
+          <ProductReviewsSection productId={product.id} />
+        </div>
       </div>
     </div>
   );
