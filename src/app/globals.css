@@ -22,7 +22,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Baskervville", serif;;
+  font-family: "Poppins", sans-serif;
 }
 
 @keyframes fadeIn {
@@ -45,10 +45,37 @@ body {
   }
 }
 
+@keyframes zoomIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
 
 .animate-slideUp {
   animation: slideUp 0.3s ease-out;
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.zoom-in {
+  animation: zoomIn 0.2s ease-out;
+}
+
+.duration-200 {
+  animation-duration: 200ms;
 }

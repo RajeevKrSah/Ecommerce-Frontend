@@ -28,6 +28,8 @@ export default function ProductDetailPage() {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [viewingCount, setViewingCount] = useState(34);
   const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<number | null>(null);
+  const [selectedColor, setSelectedColor] = useState<number | null>(null);
 
   useEffect(() => {
     loadProduct();
@@ -114,10 +116,47 @@ export default function ProductDetailPage() {
       return;
     }
 
+    // Check if product has sizes/colors and none is selected
+    if (!product.has_variants) {
+      if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+        addToast({
+          type: 'error',
+          message: 'Please select a size',
+        });
+        return;
+      }
+      if (product.colors && product.colors.length > 0 && !selectedColor) {
+        addToast({
+          type: 'error',
+          message: 'Please select a color',
+        });
+        return;
+      }
+    }
+
     setIsAdding(true);
     try {
-      // Add to cart with variant ID if applicable
-      await addToCart(product.id, quantity, selectedVariant?.id);
+      // Prepare metadata for size/color selection
+      const metadata: any = {};
+      if (selectedSize && product.sizes) {
+        const size = product.sizes.find(s => s.id === selectedSize);
+        if (size) metadata.size = size.name;
+      }
+      if (selectedColor && product.colors) {
+        const color = product.colors.find(c => c.id === selectedColor);
+        if (color) {
+          metadata.color = color.name;
+          metadata.color_hex = color.hex_code;
+        }
+      }
+
+      console.log('Adding to cart with metadata:', metadata);
+      console.log('Selected size ID:', selectedSize);
+      console.log('Selected color ID:', selectedColor);
+      console.log('Product:', product.name);
+
+      // Add to cart with variant ID if applicable, or with metadata
+      await addToCart(product.id, quantity, selectedVariant?.id, Object.keys(metadata).length > 0 ? metadata : undefined);
 
       if (!isAuthenticated) {
         addToast({
@@ -133,6 +172,11 @@ export default function ProductDetailPage() {
 
       setJustAdded(true);
       setTimeout(() => setJustAdded(false), 3000);
+      
+      // Reset selections after adding to cart
+      console.log('Resetting selections after add to cart');
+      setSelectedSize(null);
+      setSelectedColor(null);
     } catch (error: any) {
       console.error('Add to cart error:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to add to cart';
@@ -348,6 +392,65 @@ export default function ProductDetailPage() {
                 <p className="text-xs text-neutral-600 leading-relaxed">
                   {product.short_description}
                 </p>
+              </div>
+            )}
+
+            {/* Sizes and Colors Display (for non-variant products) */}
+            {!product.has_variants && (product.sizes || product.colors) && (
+              <div className="space-y-4 pb-6 border-b border-neutral-200">
+                {/* Available Sizes */}
+                {product.sizes && product.sizes.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-medium text-neutral-900 block">
+                      Select Size <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {product.sizes.map((size) => (
+                        <button
+                          key={size.id}
+                          onClick={() => setSelectedSize(size.id)}
+                          className={`px-4 py-2 border-2 rounded-lg text-sm font-medium transition-all ${
+                            selectedSize === size.id
+                              ? 'border-neutral-900 bg-neutral-900 text-white'
+                              : 'border-neutral-200 text-neutral-700 hover:border-neutral-400'
+                          }`}
+                        >
+                          {size.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Colors */}
+                {product.colors && product.colors.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-medium text-neutral-900 block">
+                      Select Color <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {product.colors.map((color) => (
+                        <button
+                          key={color.id}
+                          onClick={() => setSelectedColor(color.id)}
+                          className={`flex items-center gap-2 px-3 py-2 border-2 rounded-lg transition-all ${
+                            selectedColor === color.id
+                              ? 'border-neutral-900 bg-neutral-50'
+                              : 'border-neutral-200 hover:border-neutral-400'
+                          }`}
+                        >
+                          <div
+                            className="w-5 h-5 rounded-full border-2 border-neutral-300"
+                            style={{ backgroundColor: color.hex_code }}
+                          />
+                          <span className="text-sm font-medium text-neutral-700">
+                            {color.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

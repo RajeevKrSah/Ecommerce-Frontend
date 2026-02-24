@@ -5,6 +5,11 @@ export interface GuestCartItem {
   productId: number;
   quantity: number;
   variantId?: number;
+  metadata?: {
+    size?: string;
+    color?: string;
+    color_hex?: string;
+  };
 }
 
 const GUEST_CART_KEY = 'guest_cart';
@@ -24,17 +29,19 @@ export const guestCartManager = {
   },
 
   // Add item to guest cart
-  addItem(productId: number, quantity: number = 1, variantId?: number): GuestCartItem[] {
+  addItem(productId: number, quantity: number = 1, variantId?: number, metadata?: any): GuestCartItem[] {
     const cart = this.getCart();
-    // Find existing item with same product and variant
-    const existingItem = cart.find(item => 
-      item.productId === productId && item.variantId === variantId
-    );
+    // Find existing item with same product, variant, AND metadata (size/color)
+    const existingItem = cart.find(item => {
+      const sameProduct = item.productId === productId && item.variantId === variantId;
+      const sameMetadata = JSON.stringify(item.metadata || {}) === JSON.stringify(metadata || {});
+      return sameProduct && sameMetadata;
+    });
 
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
-      cart.push({ productId, quantity, variantId });
+      cart.push({ productId, quantity, variantId, metadata });
     }
 
     this.saveCart(cart);
@@ -42,11 +49,13 @@ export const guestCartManager = {
   },
 
   // Update item quantity
-  updateItem(productId: number, quantity: number, variantId?: number): GuestCartItem[] {
+  updateItem(productId: number, quantity: number, variantId?: number, metadata?: any): GuestCartItem[] {
     const cart = this.getCart();
-    const item = cart.find(item => 
-      item.productId === productId && item.variantId === variantId
-    );
+    const item = cart.find(item => {
+      const sameProduct = item.productId === productId && item.variantId === variantId;
+      const sameMetadata = JSON.stringify(item.metadata || {}) === JSON.stringify(metadata || {});
+      return sameProduct && sameMetadata;
+    });
 
     if (item) {
       item.quantity = quantity;
@@ -57,10 +66,12 @@ export const guestCartManager = {
   },
 
   // Remove item from cart
-  removeItem(productId: number, variantId?: number): GuestCartItem[] {
-    const cart = this.getCart().filter(item => 
-      !(item.productId === productId && item.variantId === variantId)
-    );
+  removeItem(productId: number, variantId?: number, metadata?: any): GuestCartItem[] {
+    const cart = this.getCart().filter(item => {
+      const sameProduct = item.productId === productId && item.variantId === variantId;
+      const sameMetadata = JSON.stringify(item.metadata || {}) === JSON.stringify(metadata || {});
+      return !(sameProduct && sameMetadata);
+    });
     this.saveCart(cart);
     return cart;
   },

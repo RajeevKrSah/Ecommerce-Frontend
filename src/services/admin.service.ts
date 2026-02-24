@@ -144,14 +144,22 @@ export const adminService = {
     category_id: number;
     is_active?: boolean;
     is_featured?: boolean;
+    sizes?: number[];
+    colors?: number[];
   }, images?: File[]): Promise<Product> {
     const formData = new FormData();
     
     // Append product data
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
+        // Handle arrays (sizes, colors)
+        if (Array.isArray(value)) {
+          value.forEach((item) => {
+            formData.append(`${key}[]`, item.toString());
+          });
+        }
         // Convert booleans to 1 or 0 for Laravel
-        if (typeof value === 'boolean') {
+        else if (typeof value === 'boolean') {
           formData.append(key, value ? '1' : '0');
         } else {
           formData.append(key, value.toString());
@@ -186,6 +194,8 @@ export const adminService = {
     category_id: number;
     is_active: boolean;
     is_featured: boolean;
+    sizes: number[];
+    colors: number[];
   }>, images?: File[]): Promise<Product> {
     try {
       console.log('adminService.updateProduct called with:', { productId, data, hasImages: !!images });
@@ -197,8 +207,14 @@ export const adminService = {
         // Append product data
         Object.entries(data).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            // Handle arrays (sizes, colors)
+            if (Array.isArray(value)) {
+              value.forEach((item) => {
+                formData.append(`${key}[]`, item.toString());
+              });
+            }
             // Convert booleans to 1 or 0 for Laravel
-            if (typeof value === 'boolean') {
+            else if (typeof value === 'boolean') {
               formData.append(key, value ? '1' : '0');
             } else {
               formData.append(key, value.toString());

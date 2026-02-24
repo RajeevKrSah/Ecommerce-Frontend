@@ -8,12 +8,14 @@ import { productService } from '@/services/product.service';
 import { Product } from '@/types/product';
 import Button from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function GuestCartView() {
   const router = useRouter();
   const [guestCart, setGuestCart] = useState<GuestCartItem[]>([]);
   const [products, setProducts] = useState<Map<number, Product>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [itemToRemove, setItemToRemove] = useState<{ productId: number; variantId?: number; metadata?: any; name: string } | null>(null);
 
   useEffect(() => {
     loadGuestCart();
@@ -39,16 +41,27 @@ export default function GuestCartView() {
     setLoading(false);
   };
 
-  const handleUpdateQuantity = (productId: number, newQuantity: number) => {
+  const handleUpdateQuantity = (productId: number, newQuantity: number, variantId?: number, metadata?: any) => {
     if (newQuantity < 1) return;
     
-    guestCartManager.updateItem(productId, newQuantity);
+    guestCartManager.updateItem(productId, newQuantity, variantId, metadata);
     setGuestCart(guestCartManager.getCart());
   };
 
-  const handleRemove = (productId: number) => {
-    guestCartManager.removeItem(productId);
+  const handleRemoveClick = (productId: number, productName: string, variantId?: number, metadata?: any) => {
+    setItemToRemove({ productId, variantId, metadata, name: productName });
+  };
+
+  const handleConfirmRemove = () => {
+    if (!itemToRemove) return;
+    
+    guestCartManager.removeItem(itemToRemove.productId, itemToRemove.variantId, itemToRemove.metadata);
     setGuestCart(guestCartManager.getCart());
+    setItemToRemove(null);
+  };
+
+  const handleCancelRemove = () => {
+    setItemToRemove(null);
   };
 
   const getImageUrl = (url: string) => {
@@ -119,7 +132,7 @@ export default function GuestCartView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
-            {guestCart.map((item) => {
+            {guestCart.map((item, index) => {
               const product = products.get(item.productId);
               if (!product) return null;
 
@@ -127,7 +140,7 @@ export default function GuestCartView() {
               const itemTotal = price * item.quantity;
 
               return (
-                <Card key={item.productId}>
+                <Card key={`${item.productId}-${index}`}>
                   <CardContent className="p-6">
                     <div className="flex gap-6">
                       {/* Product Image */}
@@ -152,6 +165,29 @@ export default function GuestCartView() {
                             {product.name}
                           </h3>
                         </Link>
+                        
+                        {/* Size and Color */}
+                        {item.metadata && (item.metadata.size || item.metadata.color) && (
+                          <div className="flex items-center gap-3 mt-2">
+                            {item.metadata.size && (
+                              <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                Size: {item.metadata.size}
+                              </span>
+                            )}
+                            {item.metadata.color && (
+                              <span className="flex items-center gap-1.5 text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                {item.metadata.color_hex && (
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-gray-300"
+                                    style={{ backgroundColor: item.metadata.color_hex }}
+                                  />
+                                )}
+                                {item.metadata.color}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        
                         <p className="text-gray-600 mt-1">
                           ${Number(price).toFixed(2)} each
                         </p>
@@ -160,7 +196,7 @@ export default function GuestCartView() {
                         <div className="flex items-center gap-4 mt-4">
                           <div className="flex items-center border border-gray-300 rounded-lg">
                             <button
-                              onClick={() => handleUpdateQuantity(item.productId, item.quantity - 1)}
+                              onClick={() => handleUpdateQuantity(item.productId, item.quantity - 1, item.variantId, item.metadata)}
                               className="px-3 py-1 hover:bg-gray-100"
                               disabled={item.quantity <= 1}
                             >
@@ -170,7 +206,7 @@ export default function GuestCartView() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1)}
+                              onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1, item.variantId, item.metadata)}
                               className="px-3 py-1 hover:bg-gray-100"
                               disabled={item.quantity >= product.stock_quantity}
                             >
@@ -179,7 +215,7 @@ export default function GuestCartView() {
                           </div>
 
                           <button
-                            onClick={() => handleRemove(item.productId)}
+                            onClick={() => handleRemoveClick(item.productId, product.name, item.variantId, item.metadata)}
                             className="text-red-600 hover:text-red-700 text-sm font-medium"
                           >
                             Remove
@@ -261,6 +297,18 @@ export default function GuestCartView() {
           </div>
         </div>
       </div>
+
+      {/* Confirm Remove Modal */}
+      <ConfirmModal
+        isOpen={!!itemToRemove}
+        onClose={handleCancelRemove}
+        onConfirm={handleConfirmRemove}
+        title="Remove Item"
+        message={`Are you sure you want to remove "${itemToRemove?.name}" from your cart?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

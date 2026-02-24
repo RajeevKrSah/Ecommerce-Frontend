@@ -1,155 +1,151 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Cart } from '@/types/cart';
+import { useState, useEffect, useCallback } from 'react';
+import { Cart, CartItem, CartResponse } from '@/types/cart';
 import { cartService } from '@/services/cart.service';
 import { useAuth } from './useAuth';
-import { guestCartManager, GuestCartItem } from '@/lib/guestCart';
 
+/**
+ * Production-Ready Cart Hook
+ */
 export function useCart() {
   const [cart, setCart] = useState<Cart | null>(null);
-  const [guestCart, setGuestCart] = useState<GuestCartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
 
-  const fetchCart = async () => {
-    if (!isAuthenticated) {
-      // Load guest cart from localStorage
-      const localCart = guestCartManager.getCart();
-      setGuestCart(localCart);
-      setCart(null);
-      setIsLoading(false);
-      return;
-    }
-
+  /**
+   * Fetch cart from API
+   */
+  const fetchCart = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const data = await cartService.getCart();
-      setCart(data);
-      setGuestCart([]);
-    } catch (error) {
-      console.error('Failed to fetch cart:', error);
+      const cartData = await cartService.getCart();
+      setCart(cartData);
+    } catch (err: any) {
+      console.error('Failed to fetch cart:', err);
+      setError(err.message);
+      setCart(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  // Merge guest cart with user cart on login
-  useEffect(() => {
-    const mergeGuestCart = async () => {
-      if (isAuthenticated && guestCart.length > 0) {
-        console.log('Merging guest cart with user cart...');
-        
-        try {
-          // Add all guest cart items to user cart
-          for (const item of guestCart) {
-            await cartService.addToCart(item.productId, item.quantity);
-          }
-          
-          // Clear guest cart after merge
-          guestCartManager.clearCart();
-          setGuestCart([]);
-          
-          // Refresh user cart
-          await fetchCart();
-        } catch (error) {
-          console.error('Failed to merge guest cart:', error);
-        }
-      }
-    };
-
-    mergeGuestCart();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    fetchCart();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // Listen for guest cart updates
-  useEffect(() => {
-    if (!isAuthenticated) {
-      const handleGuestCartUpdate = (event: CustomEvent) => {
-        setGuestCart(event.detail);
-      };
-
-      window.addEventListener('guestCartUpdated', handleGuestCartUpdate as EventListener);
-      
-      return () => {
-        window.removeEventListener('guestCartUpdated', handleGuestCartUpdate as EventListener);
-      };
-    }
-  }, [isAuthenticated]);
-
-  const addToCart = async (productId: number, quantity: number = 1, variantId?: number) => {
-    if (!isAuthenticated) {
-      // Add to guest cart (localStorage)
-      const updatedGuestCart = guestCartManager.addItem(productId, quantity, variantId);
-      setGuestCart(updatedGuestCart);
-      return null;
-    }
-
+  /**
+   * Add to cart (supports both variant and product+metadata)
+   */
+  const addToCart = useCallback(async (
+    productId?: number,
+    quantity: number = 1,
+    variantId?: number,
+    metadata?: Record<string, any>
+  ): Promise<CartResponse> => {
     try {
-      const updatedCart = await cartService.addToCart(productId, quantity, variantId);
-      setCart(updatedCart);
-      return updatedCart;
-    } catch (error) {
-      throw error;
+      const response = await cartService.addToCart(productId, quantity, variantId, metadata);
+      if (response.success && response.cart) {
+        setCart(response.cart);
+      }
+      return response;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
     }
-  };
+  }, []);
 
-  const updateQuantity = async (itemId: number, quantity: number) => {
+  /**
+   * Update item quantity
+   */
+  const updateQuantity = useCallback(async (
+    itemId: number,
+    quantity: number
+  ): Promise<void> => {
+    // Optimistic update
+    if (cart) {
+      const updatedItems = cart.items.map(item =>
+        item.id === itemId ? { ...item, quantity } : item
+      );
+      setCart({ ...cart, items: updatedItems });
+    }
+
     try {
       const updatedCart = await cartService.updateQuantity(itemId, quantity);
       setCart(updatedCart);
-      return updatedCart;
-    } catch (error) {
-      throw error;
+    } catch (err: any) {
+      setError(err.message);
+      // Revert optimistic update
+      await fetchCart();
+      throw err;
     }
-  };
+  }, [cart, fetchCart]);
 
-  const removeItem = async (itemId: number) => {
+  /**
+   * Remove item from cart
+   */
+  const removeItem = useCallback(async (itemId: number): Promise<void> => {
+    // Optimistic update
+    if (cart) {
+      const updatedItems = cart.items.filter(item => item.id !== itemId);
+      setCart({ ...cart, items: updatedItems });
+    }
+
     try {
       const updatedCart = await cartService.removeItem(itemId);
       setCart(updatedCart);
-      return updatedCart;
-    } catch (error) {
-      throw error;
+    } catch (err: any) {
+      setError(err.message);
+      // Revert optimistic update
+      await fetchCart();
+      throw err;
     }
-  };
+  }, [cart, fetchCart]);
 
-  const clearCart = async () => {
-    if (!isAuthenticated) {
-      guestCartManager.clearCart();
-      setGuestCart([]);
-      return;
-    }
-
+  /**
+   * Clear cart
+   */
+  const clearCart = useCallback(async (): Promise<void> => {
     try {
       await cartService.clearCart();
       setCart(null);
-    } catch (error) {
-      throw error;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
     }
-  };
+  }, []);
 
-  // Get cart count (works for both guest and authenticated)
-  const getCartCount = () => {
-    if (!isAuthenticated) {
-      return guestCart.reduce((total, item) => total + item.quantity, 0);
-    }
-    return cart?.total_items || 0;
-  };
+  /**
+   * Initialize cart on mount and auth change
+   */
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
+
+  /**
+   * Get cart count
+   */
+  const cartCount = cart?.total_items || 0;
+
+  /**
+   * Get cart subtotal
+   */
+  const cartSubtotal = cart?.subtotal || '0.00';
+
+  /**
+   * Check if cart is empty
+   */
+  const isEmpty = !cart || cart.items.length === 0;
 
   return {
     cart,
-    guestCart,
     isLoading,
+    error,
+    cartCount,
+    cartSubtotal,
+    isEmpty,
     addToCart,
     updateQuantity,
     removeItem,
     clearCart,
     refreshCart: fetchCart,
-    cartCount: getCartCount(),
   };
 }
-

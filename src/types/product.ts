@@ -23,9 +23,16 @@ export interface ProductImage {
 
 // Legacy color/size support (backward compatible)
 export interface ProductColor {
+  id: number;
   name: string;
-  value: string;
-  hex: string;
+  code: string;
+  hex_code: string;
+}
+
+export interface ProductSize {
+  id: number;
+  name: string;
+  code: string;
 }
 
 export interface Product {
@@ -56,7 +63,7 @@ export interface Product {
   total_stock?: number;
   
   // Legacy support (backward compatible)
-  sizes?: string[];
+  sizes?: ProductSize[];
   colors?: ProductColor[];
 }
 

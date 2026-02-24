@@ -214,17 +214,23 @@ export default function CheckoutPage() {
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Review Your Order</h2>
                     <div className="space-y-3">
-                      {cart.items.map((item) => (
+                      {cart.items.map((item) => {
+                        // Skip items without product data
+                        if (!item.product) return null;
+                        
+                        const product = item.product;
+                        
+                        return (
                         <div
                           key={item.id}
                           className="flex gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200"
                         >
                           {/* Product Image */}
                           <div className="flex-shrink-0">
-                            {item.product.image ? (
+                            {product.image ? (
                               <img
-                                src={getImageUrl(item.product.image)}
-                                alt={item.product.name}
+                                src={getImageUrl(product.image)}
+                                alt={product.name}
                                 className="w-20 h-20 rounded-lg object-cover"
                               />
                             ) : (
@@ -237,7 +243,7 @@ export default function CheckoutPage() {
                           {/* Product Details */}
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-gray-900 truncate">
-                              {item.product.name}
+                              {product.name}
                             </h3>
                             <p className="text-sm text-gray-600 mt-1">
                               ${Number(item.price).toFixed(2)} × {item.quantity}
@@ -251,7 +257,8 @@ export default function CheckoutPage() {
                             </p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Quick Summary */}
@@ -527,13 +534,19 @@ export default function CheckoutPage() {
 
                 {/* Items List */}
                 <div className="space-y-3 mb-6 max-h-64 overflow-y-auto">
-                  {cart.items.map((item) => (
+                  {cart.items.map((item) => {
+                    // Skip items without product data
+                    if (!item.product) return null;
+                    
+                    const product = item.product;
+                    
+                    return (
                     <div key={item.id} className="flex gap-3">
                       <div className="relative flex-shrink-0">
-                        {item.product.image ? (
+                        {product.image ? (
                           <img
-                            src={getImageUrl(item.product.image)}
-                            alt={item.product.name}
+                            src={getImageUrl(product.image)}
+                            alt={product.name}
                             className="w-16 h-16 rounded object-cover"
                           />
                         ) : (
@@ -547,7 +560,7 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {item.product.name}
+                          {product.name}
                         </p>
                         <p className="text-xs text-gray-500">
                           ${Number(item.price).toFixed(2)} each
@@ -557,7 +570,8 @@ export default function CheckoutPage() {
                         </p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Price Breakdown */}

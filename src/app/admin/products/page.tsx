@@ -21,6 +21,8 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [sizes, setSizes] = useState<any[]>([]);
+  const [colors, setColors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
@@ -40,25 +42,17 @@ export default function AdminProductsPage() {
 
   const fetchData = async () => {
     try {
-      const [productsResponse, categoriesData, attributesData] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          credentials: 'include',
-        }),
-        adminService.getCategories(),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/attributes`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        })
-          .then((res) => (res.ok ? res.json() : []))
-          .catch(() => []),
-      ]);
+      setLoading(true);
+      
+      // Fetch products
+      const productsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+      });
 
       if (!productsResponse.ok) {
         if (productsResponse.status === 401) {
@@ -70,8 +64,45 @@ export default function AdminProductsPage() {
 
       const productsData = await productsResponse.json();
       setProducts(productsData.products.data || productsData.products);
-      setCategories(categoriesData);
-      setAttributes(Array.isArray(attributesData) ? attributesData : attributesData.data || []);
+
+      // Fetch other data (non-blocking)
+      try {
+        const categoriesData = await adminService.getCategories();
+        setCategories(categoriesData);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        setCategories([]);
+      }
+
+      try {
+        const attributesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attributes`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
+        const attributesData = attributesResponse.ok ? await attributesResponse.json() : [];
+        setAttributes(Array.isArray(attributesData) ? attributesData : attributesData.data || []);
+      } catch (error) {
+        console.error('Failed to fetch attributes:', error);
+        setAttributes([]);
+      }
+
+      try {
+        const sizesData = await adminService.getSizes();
+        setSizes(Array.isArray(sizesData) ? sizesData : []);
+      } catch (error) {
+        console.error('Failed to fetch sizes:', error);
+        setSizes([]);
+      }
+
+      try {
+        const colorsData = await adminService.getColors();
+        setColors(Array.isArray(colorsData) ? colorsData : []);
+      } catch (error) {
+        console.error('Failed to fetch colors:', error);
+        setColors([]);
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
       addToast({
@@ -200,6 +231,8 @@ export default function AdminProductsPage() {
           product={modalState.product}
           categories={categories}
           attributes={attributes}
+          sizes={sizes}
+          colors={colors}
           onClose={() => setModalState({ isOpen: false, mode: 'create', product: null })}
           onSave={handleSave}
           mode={modalState.mode}

@@ -65,6 +65,8 @@ export interface ProductModalProps {
   product?: Product | null;
   categories: Category[];
   attributes: Attribute[];
+  sizes: any[];
+  colors: any[];
   onClose: () => void;
   onSave: (product: Product) => void;
   mode: 'create' | 'edit';

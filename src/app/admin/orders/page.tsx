@@ -174,10 +174,6 @@ export default function AdminOrdersPage() {
   const handleSave = (updatedOrder: Order) => {
     setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
     setUpdatingOrder(null);
-    addToast({
-      type: 'success',
-      message: 'Order status updated successfully',
-    });
   };
 
   const getStatusColor = (status: string) => {

@@ -13,6 +13,16 @@ import {
     FiX,
 } from "react-icons/fi";
 import { HiOutlineShoppingBag } from 'react-icons/hi';
+import { 
+    LayoutDashboard, 
+    ShoppingBag, 
+    MapPin, 
+    CreditCard, 
+    Heart, 
+    RotateCcw, 
+    User, 
+    LogOut 
+} from 'lucide-react';
 
 interface Category {
     id: number;
@@ -30,6 +40,23 @@ const navItems: NavItem[] = [
     { name: "Products", href: "/products" },
     { name: "Cart", href: "/cart" },
     { name: "Wishlist", href: "/wishlist" },
+];
+
+interface MenuItemType {
+    name: string;
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+    variant?: 'default' | 'danger';
+}
+
+const menuItems: MenuItemType[] = [
+    { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
+    { name: "Addresses", href: "/dashboard/addresses", icon: MapPin },
+    { name: "Payment Methods", href: "/dashboard/payments", icon: CreditCard },
+    { name: "Wishlist", href: "/dashboard/wishlist", icon: Heart },
+    { name: "Returns", href: "/dashboard/returns", icon: RotateCcw },
+    { name: "Profile", href: "/dashboard/profile", icon: User },
 ];
 
 export default function Nav() {
@@ -175,22 +202,31 @@ export default function Nav() {
                                     </div>
                                 </div>
                                 {/* Dropdown Menu */}
-                                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                                    <Link href="/dashboard" className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b">
-                                        Dashboard
-                                    </Link>
-                                    <Link href="/dashboard/orders" className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b">
-                                        My Orders
-                                    </Link>
-                                    <Link href="/dashboard/profile" className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b">
-                                        Profile
-                                    </Link>
-                                    <button 
-                                        onClick={handleLogout}
-                                        className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50"
-                                    >
-                                        Logout
-                                    </button>
+                                <div className="absolute right-0 top-full mt-3 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+                                    <div className="py-2">
+                                        {menuItems.map((item, index) => {
+                                            const Icon = item.icon;
+                                            return (
+                                                <Link 
+                                                    key={item.href} 
+                                                    href={item.href} 
+                                                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 transition-all duration-150 group/item"
+                                                >
+                                                    <Icon className="w-4 h-4 text-gray-500 group-hover/item:text-yellow-500 transition-colors" />
+                                                    <span className="font-medium">{item.name}</span>
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="border-t border-gray-100">
+                                        <button 
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-all duration-150 group/item"
+                                        >
+                                            <LogOut className="w-4 h-4 group-hover/item:translate-x-0.5 transition-transform" />
+                                            <span className="font-medium">Sign Out</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -392,35 +428,29 @@ export default function Nav() {
                         {/* Mobile Auth */}
                         {mounted && isAuthenticated && user ? (
                             <div className="mt-4 pt-4 border-t border-gray-200 space-y-1">
-                                <Link
-                                    href="/dashboard"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                                >
-                                    Dashboard
-                                </Link>
-                                <Link
-                                    href="/dashboard/orders"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                                >
-                                    My Orders
-                                </Link>
-                                <Link
-                                    href="/dashboard/profile"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                                >
-                                    Profile
-                                </Link>
+                                {menuItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 rounded-lg transition-all duration-150 group"
+                                        >
+                                            <Icon className="w-4 h-4 text-gray-500 group-hover:text-yellow-500 transition-colors" />
+                                            <span className="font-medium">{item.name}</span>
+                                        </Link>
+                                    );
+                                })}
                                 <button
                                     onClick={() => {
                                         handleLogout();
                                         setMobileMenuOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150 group"
                                 >
-                                    Logout
+                                    <LogOut className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                                    <span className="font-medium">Sign Out</span>
                                 </button>
                             </div>
                         ) : (

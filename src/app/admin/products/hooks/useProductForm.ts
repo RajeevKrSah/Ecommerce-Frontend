@@ -48,6 +48,10 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
   const [variants, setVariants] = useState<VariantFormData[]>([]);
   const [generatingVariants, setGeneratingVariants] = useState(false);
 
+  // Size and Color state
+  const [selectedSizes, setSelectedSizes] = useState<number[]>([]);
+  const [selectedColors, setSelectedColors] = useState<number[]>([]);
+
   // Load product data when editing
   useEffect(() => {
     if (mode === 'edit' && product) {
@@ -204,6 +208,10 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
       if (formData.sale_price) submitData.sale_price = Number(formData.sale_price);
       if (formData.category_id) submitData.category_id = Number(formData.category_id);
       
+      // Add sizes and colors
+      if (selectedSizes.length > 0) submitData.sizes = selectedSizes;
+      if (selectedColors.length > 0) submitData.colors = selectedColors;
+      
       let result;
       if (mode === 'create') {
         result = await adminService.createProduct(submitData);
@@ -319,6 +327,8 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
     images,
     selectedAttributes,
     variants,
+    selectedSizes,
+    selectedColors,
     saving,
     uploadingImages,
     generatingVariants,
@@ -329,6 +339,8 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
     setImages,
     setSelectedAttributes,
     setVariants,
+    setSelectedSizes,
+    setSelectedColors,
     
     // Handlers
     handleNameChange,

@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import { Baskervville} from "next/font/google";
+import { Poppins, Baskervville} from "next/font/google";
 import { ToastProvider } from "@/components/ui/Toast";
 import ConditionalLayout from "@/components/layouts/ConditionalLayout";
 import "./globals.css";
+
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: "400",
+});
 
 const baskervville = Baskervville({
   variable: "--font-baskervville",
@@ -24,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${baskervville.variable} antialiased`}
+        className={`${poppins.variable} ${baskervville.variable} antialiased`}
         suppressHydrationWarning
       >
         <ToastProvider>
