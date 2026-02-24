@@ -380,4 +380,13 @@ export const adminService = {
   async deleteSize(sizeId: number): Promise<void> {
     await adminApi.delete(`/admin/sizes/${sizeId}`);
   },
+
+  async uploadProductImage(productId: number, formData: FormData): Promise<any> {
+    const response = await adminApi.post(`/admin/products/${productId}/images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };

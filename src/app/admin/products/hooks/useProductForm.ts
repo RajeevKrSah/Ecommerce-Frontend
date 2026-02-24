@@ -91,34 +91,34 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
     const uploadedUrls: string[] = [];
     
     for (const image of images) {
-      if (!image.file) continue;
+      if (!image.file) {
+        console.warn('Skipping image without file');
+        continue;
+      }
+      
+      // Debug: Check if file is valid
+      console.log('Uploading image:', {
+        name: image.file.name,
+        type: image.file.type,
+        size: image.file.size,
+        isFile: image.file instanceof File,
+      });
       
       const imageFormData = new FormData();
-      imageFormData.append('image', image.file);
+      imageFormData.append('image', image.file, image.file.name);
       imageFormData.append('is_primary', image.is_primary ? '1' : '0');
       
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/admin/products/${productId}/images`,
-          {
-            method: 'POST',
-            body: imageFormData,
-            credentials: 'include',
-            headers: {
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-            },
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          uploadedUrls.push(data.image_url || data.image?.image_url);
-        } else {
-          console.error('Failed to upload image:', await response.text());
-        }
-      } catch (error) {
+        // Use adminService which handles authentication properly
+        const response = await adminService.uploadProductImage(productId, imageFormData);
+        console.log('Upload successful:', response);
+        uploadedUrls.push(response.image_url || response.image?.image_url);
+      } catch (error: any) {
         console.error('Failed to upload image:', error);
+        addToast({
+          type: 'error',
+          message: error.message || 'Failed to upload image',
+        });
       }
     }
     
