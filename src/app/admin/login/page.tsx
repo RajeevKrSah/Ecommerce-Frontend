@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/Toast';
+import { useAuth } from '@/hooks/useAuth';
+import { formatError } from '@/lib/utils';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const { addToast } = useToast();
+  const { adminLogin, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -30,47 +33,24 @@ export default function AdminLoginPage() {
     setErrors({});
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}/sanctum/csrf-cookie`, {
-        credentials: 'include',
-      });
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.errors) {
-          setErrors(data.errors);
-        }
-        addToast({
-          type: 'error',
-          message: data.message || 'Login failed',
-        });
-        return;
-      }
-
-      localStorage.setItem('admin_data', JSON.stringify(data.admin));
-
+      await adminLogin(formData);
+      
       addToast({
         type: 'success',
         message: 'Login successful!',
       });
-
-      router.push('/admin/dashboard');
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Admin login error:', error);
+      
+      const errorMessage = formatError(error);
+      
+      if (error.type === 'validation' && error.errors) {
+        setErrors(error.errors);
+      }
+      
       addToast({
         type: 'error',
-        message: 'An error occurred. Please try again.',
+        message: errorMessage || 'Login failed. Please check your credentials.',
       });
     } finally {
       setIsLoading(false);
@@ -160,10 +140,10 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || authLoading}
               className="w-full bg-slate-900 text-white py-2.5 text-sm px-4 rounded-lg font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? 'Signing in...' : 'Sign in to Admin Portal'}
+              {isLoading || authLoading ? 'Signing in...' : 'Sign in to Admin Portal'}
             </button>
           </form>
 

@@ -2,10 +2,17 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role?: 'user' | 'admin';
+  roles?: Array<{ id: number; name: 'user' | 'admin' | 'super_admin' }>;
   email_verified_at: string | null;
   created_at?: string;
   updated_at?: string;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+}
+
+export interface UserRole {
+  id: number;
+  name: 'user' | 'admin' | 'super_admin';
 }
 
 export interface LoginRequest {
@@ -22,10 +29,17 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   message: string;
-  user: User;
-  access_token: string;
-  token_type: string;
-  expires_in: number;
+  data?: {
+    user: User;
+    role: 'user' | 'admin' | 'super_admin';
+    token: string;
+  };
+  user?: User;
+  role?: 'user' | 'admin' | 'super_admin';
+  access_token?: string;
+  token?: string;
+  token_type?: string;
+  expires_in?: number;
 }
 
 export interface AuthError {

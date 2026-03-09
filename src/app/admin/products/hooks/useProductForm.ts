@@ -89,6 +89,7 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
 
   const uploadImages = async (productId: number): Promise<string[]> => {
     const uploadedUrls: string[] = [];
+    const failedUploads: string[] = [];
     
     for (const image of images) {
       if (!image.file) {
@@ -96,30 +97,24 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
         continue;
       }
       
-      // Debug: Check if file is valid
-      console.log('Uploading image:', {
-        name: image.file.name,
-        type: image.file.type,
-        size: image.file.size,
-        isFile: image.file instanceof File,
-      });
-      
       const imageFormData = new FormData();
       imageFormData.append('image', image.file, image.file.name);
       imageFormData.append('is_primary', image.is_primary ? '1' : '0');
       
       try {
-        // Use adminService which handles authentication properly
         const response = await adminService.uploadProductImage(productId, imageFormData);
-        console.log('Upload successful:', response);
         uploadedUrls.push(response.image_url || response.image?.image_url);
       } catch (error: any) {
-        console.error('Failed to upload image:', error);
-        addToast({
-          type: 'error',
-          message: error.message || 'Failed to upload image',
-        });
+        console.error('Failed to upload image:', image.file.name, error);
+        failedUploads.push(image.file.name);
       }
+    }
+    
+    if (failedUploads.length > 0) {
+      addToast({
+        type: 'warning',
+        message: `Failed to upload ${failedUploads.length} image(s): ${failedUploads.join(', ')}`,
+      });
     }
     
     return uploadedUrls;
@@ -190,23 +185,47 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
   };
 
   const handleBasicSubmit = async () => {
+    // Validation
+    if (!formData.name?.trim()) {
+      addToast({ type: 'error', message: 'Product name is required' });
+      return;
+    }
+    if (!formData.sku?.trim()) {
+      addToast({ type: 'error', message: 'SKU is required' });
+      return;
+    }
+    if (!formData.price || Number(formData.price) <= 0) {
+      addToast({ type: 'error', message: 'Valid price is required' });
+      return;
+    }
+    if (!formData.has_variants && (!formData.stock_quantity || Number(formData.stock_quantity) < 0)) {
+      addToast({ type: 'error', message: 'Valid stock quantity is required' });
+      return;
+    }
+    if (!formData.category_id) {
+      addToast({ type: 'error', message: 'Category is required' });
+      return;
+    }
+
     setSaving(true);
     
     try {
       const submitData: any = {
-        name: formData.name,
-        slug: formData.slug,
+        name: formData.name.trim(),
+        slug: formData.slug.trim(),
         price: Number(formData.price),
-        sku: formData.sku,
+        sku: formData.sku.trim(),
         stock_quantity: formData.has_variants ? 0 : Number(formData.stock_quantity),
         is_active: Boolean(formData.is_active),
         is_featured: Boolean(formData.is_featured),
+        category_id: Number(formData.category_id),
       };
       
-      if (formData.description) submitData.description = formData.description;
-      if (formData.short_description) submitData.short_description = formData.short_description;
-      if (formData.sale_price) submitData.sale_price = Number(formData.sale_price);
-      if (formData.category_id) submitData.category_id = Number(formData.category_id);
+      if (formData.description?.trim()) submitData.description = formData.description.trim();
+      if (formData.short_description?.trim()) submitData.short_description = formData.short_description.trim();
+      if (formData.sale_price && Number(formData.sale_price) > 0) {
+        submitData.sale_price = Number(formData.sale_price);
+      }
       
       // Add sizes and colors
       if (selectedSizes.length > 0) submitData.sizes = selectedSizes;
@@ -224,16 +243,16 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
         throw new Error('No result returned from server');
       }
       
+      // Upload images if any
       if (images.length > 0 && result.id) {
         setUploadingImages(true);
         try {
-          await uploadImages(result.id);
+          const uploadedUrls = await uploadImages(result.id);
+          if (uploadedUrls.length > 0) {
+            console.log(`Successfully uploaded ${uploadedUrls.length} image(s)`);
+          }
         } catch (error) {
-          console.error('Failed to upload some images:', error);
-          addToast({
-            type: 'warning',
-            message: 'Product created but some images failed to upload',
-          });
+          console.error('Image upload error:', error);
         } finally {
           setUploadingImages(false);
         }
@@ -257,13 +276,20 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
       
       let errorMessage = `Failed to ${mode} product`;
       
-      if (error?.response?.data?.errors) {
+      // Handle validation errors
+      if (error?.errors) {
+        const errorMessages = Object.entries(error.errors).map(([field, messages]: [string, any]) => {
+          const msgArray = Array.isArray(messages) ? messages : [messages];
+          return `${field}: ${msgArray.join(', ')}`;
+        });
+        errorMessage = errorMessages.join('; ');
+      } else if (error?.response?.data?.errors) {
         const errors = error.response.data.errors;
         const errorMessages = Object.entries(errors).map(([field, messages]: [string, any]) => {
           const msgArray = Array.isArray(messages) ? messages : [messages];
           return `${field}: ${msgArray.join(', ')}`;
         });
-        errorMessage = errorMessages.join('\n');
+        errorMessage = errorMessages.join('; ');
       } else if (error?.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error?.message) {
@@ -280,40 +306,55 @@ export const useProductForm = ({ product, mode, attributes, onSave }: UseProduct
   };
 
   const handleVariantsSubmit = async () => {
-    if (!createdProduct) return;
+    if (!createdProduct) {
+      addToast({ type: 'error', message: 'Product not created yet' });
+      return;
+    }
+
+    if (variants.length === 0) {
+      addToast({ type: 'error', message: 'Please generate variants first' });
+      return;
+    }
     
     setSaving(true);
     
     try {
-      let successCount = 0;
-      for (const variant of variants) {
-        try {
-          await variantService.createVariant(createdProduct.id, {
+      const results = await Promise.allSettled(
+        variants.map(variant =>
+          variantService.createVariant(createdProduct.id, {
             sku: variant.sku,
             price: Number(variant.price),
             stock_quantity: Number(variant.stock_quantity),
             attribute_values: variant.attribute_values,
             is_active: true,
-          });
-          successCount++;
-        } catch (error) {
-          console.error('Failed to create variant:', error);
-        }
-      }
+          })
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
       
       if (successCount > 0) {
-        addToast({
-          type: 'success',
-          message: `Created ${successCount} of ${variants.length} variants successfully`,
-        });
+        if (failedCount > 0) {
+          addToast({
+            type: 'warning',
+            message: `Created ${successCount} of ${variants.length} variants. ${failedCount} failed.`,
+          });
+        } else {
+          addToast({
+            type: 'success',
+            message: `Successfully created all ${successCount} variants`,
+          });
+        }
         onSave(createdProduct);
       } else {
         throw new Error('Failed to create any variants');
       }
     } catch (error: any) {
+      console.error('Variant creation error:', error);
       addToast({
         type: 'error',
-        message: error.message || 'Failed to create variants',
+        message: error?.message || 'Failed to create variants',
       });
     } finally {
       setSaving(false);

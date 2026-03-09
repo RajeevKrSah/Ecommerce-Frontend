@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ToastProvider } from '@/components/ui/Toast';
+import AdminGuard from '@/components/guards/AdminGuard';
+import { authService } from '@/services/auth.services';
 
 export default function AdminLayout({
   children,
@@ -23,20 +25,68 @@ export default function AdminLayout({
       return;
     }
 
-    const adminData = localStorage.getItem('admin_data');
+    const loadAdminData = async () => {
+      try {
+        // Check if token exists
+        const hasToken = authService.isAuthenticated();
+        
+        if (!hasToken) {
+          router.replace('/admin/login');
+          return;
+        }
 
-    if (!adminData) {
-      router.push('/admin/login');
-      return;
-    }
+        // Check if role exists
+        const role = authService.getUserRole();
+        
+        if (!role) {
+          authService.logout();
+          router.replace('/admin/login');
+          return;
+        }
 
-    try {
-      setAdmin(JSON.parse(adminData));
-    } catch (error) {
-      router.push('/admin/login');
-    } finally {
-      setIsLoading(false);
-    }
+        // Verify user has admin role
+        if (role !== 'admin' && role !== 'super_admin') {
+          authService.logout();
+          router.replace('/admin/login');
+          return;
+        }
+
+        // Try to get admin data from localStorage first
+        const storedAdmin = localStorage.getItem('admin_data');
+        if (storedAdmin) {
+          try {
+            const adminData = JSON.parse(storedAdmin);
+            setAdmin(adminData);
+          } catch (e) {
+            console.error('Failed to parse stored admin data:', e);
+          }
+        }
+
+        // Fetch fresh profile data in background
+        try {
+          const user = await authService.getProfile();
+          const adminData = { ...user, role };
+          setAdmin(adminData);
+          localStorage.setItem('admin_data', JSON.stringify(adminData));
+        } catch (error) {
+          console.error('Failed to fetch profile:', error);
+          // Don't redirect if we have stored data
+          if (!storedAdmin) {
+            localStorage.removeItem('admin_data');
+            router.replace('/admin/login');
+          }
+        }
+        
+      } catch (error) {
+        console.error('Failed to load admin data:', error);
+        localStorage.removeItem('admin_data');
+        router.replace('/admin/login');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAdminData();
   }, [pathname, router]);
 
   // Show loading for protected routes
@@ -55,22 +105,16 @@ export default function AdminLayout({
 
   const handleLogout = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/auth/logout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-      });
+      await authService.logout();
+      localStorage.removeItem('admin_data');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem('admin_data');
       router.push('/admin/login');
     }
   };
+
+  const userRole = authService.getUserRole();
 
   const navigation = [
     { 
@@ -199,7 +243,9 @@ export default function AdminLayout({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{admin?.name}</p>
-                  <p className="text-xs text-gray-400 capitalize truncate">{admin?.role?.replace('_', ' ')}</p>
+                  <p className="text-xs text-gray-400 capitalize truncate">
+                    {userRole?.replace('_', ' ') || 'Admin'}
+                  </p>
                 </div>
               </div>
               <button
@@ -243,7 +289,9 @@ export default function AdminLayout({
           </header>
 
           {/* Page Content */}
-          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          <main className="min-h-[calc(100vh-4rem)]">
+            <AdminGuard>{children}</AdminGuard>
+          </main>
         </div>
       </div>
     </ToastProvider>

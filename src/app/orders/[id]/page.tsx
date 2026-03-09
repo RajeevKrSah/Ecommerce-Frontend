@@ -129,7 +129,7 @@ export default function OrderDetailsPage() {
     );
   }
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.roles?.some(role => role.name === 'admin' || role.name === 'super_admin');
   const canRefund = isAdmin && order.payment_status === 'paid' &&
     (Number(order.refunded_amount) || 0) < Number(order.total);
   const remainingRefundable = Number(order.total) - (Number(order.refunded_amount) || 0);

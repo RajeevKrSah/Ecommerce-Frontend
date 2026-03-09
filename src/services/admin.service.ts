@@ -47,7 +47,7 @@ export const adminService = {
   },
 
   async getDashboardStats(): Promise<AdminDashboardStats> {
-    const response = await adminApi.get('/admin/dashboard/stats');
+    const response = await adminApi.get('/admin/dashboard');
     return response.data;
   },
 
@@ -388,5 +388,125 @@ export const adminService = {
       },
     });
     return response.data;
+  },
+
+  // User management - Lock/Unlock
+  async toggleUserLock(userId: number): Promise<User> {
+    const response = await adminApi.post(`/admin/users/${userId}/toggle-lock`);
+    return response.data.user;
+  },
+
+  // User statistics
+  async getUserStatistics(): Promise<{
+    total_users: number;
+    users_by_role: Record<string, number>;
+    locked_accounts: number;
+    new_users_this_month: number;
+    active_users: number;
+  }> {
+    const response = await adminApi.get('/admin/users-statistics');
+    return response.data;
+  },
+
+  // Role management (Super Admin only)
+  async promoteUser(userId: number): Promise<{ message: string; user: User; log: any }> {
+    const response = await adminApi.post(`/admin/users/${userId}/promote`);
+    return response.data;
+  },
+
+  async demoteUser(userId: number): Promise<{ message: string; user: User; log: any }> {
+    const response = await adminApi.post(`/admin/users/${userId}/demote`);
+    return response.data;
+  },
+
+  // Role change logs
+  async getRoleChangeLogs(params?: { user_id?: number; page?: number }): Promise<{
+    data: Array<{
+      id: number;
+      performed_by: number;
+      target_user_id: number;
+      old_role: string;
+      new_role: string;
+      ip_address: string;
+      created_at: string;
+      performer: User;
+      target_user: User;
+    }>;
+    current_page: number;
+    last_page: number;
+    total: number;
+  }> {
+    const response = await adminApi.get('/admin/role-change-logs', { params });
+    return response.data;
+  },
+
+  async getUserRoleChangeLogs(userId: number): Promise<any> {
+    const response = await adminApi.get(`/admin/users/${userId}/role-change-logs`);
+    return response.data;
+  },
+
+  // Order statistics
+  async getOrderStatistics(params?: {
+    date_from?: string;
+    date_to?: string;
+  }): Promise<{
+    total_orders: number;
+    total_revenue: number;
+    pending_orders: number;
+    processing_orders: number;
+    shipped_orders: number;
+    delivered_orders: number;
+    cancelled_orders: number;
+    average_order_value: number;
+  }> {
+    const response = await adminApi.get('/admin/orders/statistics', { params });
+    return response.data;
+  },
+
+  // Update payment status
+  async updatePaymentStatus(orderId: number, payment_status: string): Promise<Order> {
+    const response = await adminApi.put(`/admin/orders/${orderId}/payment-status`, {
+      payment_status,
+    });
+    return response.data.order;
+  },
+
+  // Export orders
+  async exportOrders(params?: { status?: string }): Promise<Blob> {
+    const response = await adminApi.get('/admin/orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Toggle color status
+  async toggleColorStatus(colorId: number): Promise<any> {
+    const response = await adminApi.post(`/admin/colors/${colorId}/toggle-status`);
+    return response.data;
+  },
+
+  // Update color sort order (bulk)
+  async updateColorSortOrder(colors: Array<{ id: number; sort_order: number }>): Promise<any> {
+    const response = await adminApi.post('/admin/colors/sort-order', { colors });
+    return response.data;
+  },
+
+  // Toggle size status
+  async toggleSizeStatus(sizeId: number): Promise<any> {
+    const response = await adminApi.post(`/admin/sizes/${sizeId}/toggle-status`);
+    return response.data;
+  },
+
+  // Update size sort order (bulk)
+  async updateSizeSortOrder(sizes: Array<{ id: number; sort_order: number }>): Promise<any> {
+    const response = await adminApi.post('/admin/sizes/sort-order', { sizes });
+    return response.data;
+  },
+
+  // Get order details
+  async getOrderDetails(orderId: number): Promise<Order> {
+    const response = await adminApi.get(`/admin/orders/${orderId}`);
+    return response.data.order;
   },
 };

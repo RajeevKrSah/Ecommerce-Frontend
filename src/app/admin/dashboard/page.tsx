@@ -32,9 +32,14 @@ export default function AdminDashboardPage() {
   const fetchDashboardStats = async () => {
     try {
       const data = await adminService.getDashboardStats();
+      console.log('Dashboard stats:', data);
       setStats(data);
     } catch (error: any) {
       console.error('Failed to fetch dashboard stats:', error);
+      if (error?.response?.status === 401) {
+        router.push('/admin/login');
+        return;
+      }
       addToast({
         type: 'error',
         message: error?.message || 'Failed to load dashboard statistics',

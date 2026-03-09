@@ -63,11 +63,11 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
               <p className="text-gray-900 font-mono">#{user?.id}</p>
             </div>
-            {user?.role && (
+            {user?.roles && user.roles.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                  {user.role.toUpperCase()}
+                  {user.roles[0].name.toUpperCase()}
                 </span>
               </div>
             )}

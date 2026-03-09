@@ -1,9 +1,17 @@
+/**
+ * Admin Sizes Page
+ * Production-ready implementation with token-based authentication
+ * @module admin/sizes/page
+ */
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { adminService } from '@/services/admin.service';
 import { useToast } from '@/components/ui/Toast';
-import { Trash2 } from 'lucide-react';
+import TokenManager from '@/lib/tokenManager';
+import { Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface Size {
   id: number;
@@ -11,16 +19,19 @@ interface Size {
   code: string;
   sort_order: number;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export default function AdminSizesPage() {
+  const router = useRouter();
   const [sizes, setSizes] = useState<Size[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingSize, setEditingSize] = useState<Size | null>(null);
   const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -29,20 +40,49 @@ export default function AdminSizesPage() {
   });
   const { addToast } = useToast();
 
+  // Check authentication on mount
   useEffect(() => {
+    if (!TokenManager.isAuthenticated()) {
+      router.replace('/admin/login');
+      return;
+    }
     loadSizes();
   }, []);
 
-  const loadSizes = async () => {
+  const loadSizes = useCallback(async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
+      if (!TokenManager.isAuthenticated()) {
+        router.replace('/admin/login');
+        return;
+      }
+
       const response = await adminService.getSizes();
-      setSizes(response as any);
-    } catch (error) {
-      addToast({ type: 'error', message: 'Failed to load sizes' });
+      setSizes(Array.isArray(response) ? response : []);
+    } catch (error: any) {
+      console.error('Failed to load sizes:', error);
+      const errorMessage = error?.message || 'Failed to load sizes';
+      setError(errorMessage);
+      
+      if (error?.type === 'forbidden' || error?.response?.status === 401) {
+        addToast({
+          type: 'error',
+          message: 'Session expired. Please login again.',
+        });
+        TokenManager.clearToken();
+        router.replace('/admin/login');
+      } else {
+        addToast({
+          type: 'error',
+          message: errorMessage,
+        });
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, addToast]);
 
   const filteredSizes = sizes.filter(
     (size) =>
@@ -79,6 +119,18 @@ export default function AdminSizesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.name.trim()) {
+      addToast({ type: 'error', message: 'Size name is required' });
+      return;
+    }
+    if (!formData.code.trim()) {
+      addToast({ type: 'error', message: 'Size code is required' });
+      return;
+    }
+
+    setSaving(true);
     try {
       if (editingSize) {
         await adminService.updateSize(editingSize.id, formData);
@@ -87,26 +139,32 @@ export default function AdminSizesPage() {
       } else {
         await adminService.createSize(formData);
         addToast({ type: 'success', message: 'Size created successfully' });
-        loadSizes();
+        await loadSizes();
       }
       closeModal();
     } catch (error: any) {
+      console.error('Failed to save size:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to save size';
       addToast({
         type: 'error',
-        message: error.response?.data?.message || 'Failed to save size',
+        message: errorMessage,
       });
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
 
     try {
       await adminService.deleteSize(id);
       setSizes(sizes.filter((s) => s.id !== id));
       addToast({ type: 'success', message: 'Size deleted successfully' });
-    } catch (error) {
-      addToast({ type: 'error', message: 'Failed to delete size' });
+    } catch (error: any) {
+      console.error('Failed to delete size:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to delete size';
+      addToast({ type: 'error', message: errorMessage });
     }
   };
 
@@ -118,8 +176,10 @@ export default function AdminSizesPage() {
         type: 'success',
         message: `Size ${!size.is_active ? 'activated' : 'deactivated'} successfully`,
       });
-    } catch (error) {
-      addToast({ type: 'error', message: 'Failed to update size status' });
+    } catch (error: any) {
+      console.error('Failed to update size status:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to update size status';
+      addToast({ type: 'error', message: errorMessage });
     }
   };
 
@@ -144,28 +204,58 @@ export default function AdminSizesPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Sizes</h3>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={loadSizes}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Size Management</h1>
-          <p className="text-gray-600 mt-1">Manage product sizes</p>
+          <p className="text-gray-600 mt-1">
+            {sizes.length} {sizes.length === 1 ? 'size' : 'sizes'} available
+          </p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Add Size
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadSizes}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => openModal()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add Size
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -373,9 +463,20 @@ export default function AdminSizesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                 >
-                  {editingSize ? 'Update Size' : 'Create Size'}
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    editingSize ? 'Update Size' : 'Create Size'
+                  )}
                 </button>
               </div>
             </form>

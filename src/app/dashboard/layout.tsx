@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import UserGuard from '@/components/guards/UserGuard';
+import { authService } from '@/services/auth.services';
 
 export default function DashboardLayout({
   children,
@@ -15,6 +17,15 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
+      return;
+    }
+
+    // Redirect admins to admin dashboard
+    if (!isLoading && isAuthenticated) {
+      const userRole = authService.getUserRole();
+      if (userRole === 'admin' || userRole === 'super_admin') {
+        router.push('/admin/dashboard');
+      }
     }
   }, [isLoading, isAuthenticated, router]);
 
@@ -29,11 +40,13 @@ export default function DashboardLayout({
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Page content */}
-      <main className="container mx-auto px-4 md:px-12 lg:px-24 py-8">
-        {children}
-      </main>
-    </div>
+    <UserGuard>
+      <div className="min-h-screen bg-gray-50">
+        {/* Page content */}
+        <main className="container mx-auto px-4 md:px-12 lg:px-24 py-8">
+          {children}
+        </main>
+      </div>
+    </UserGuard>
   );
 }

@@ -25,6 +25,81 @@ interface StatusModalProps {
   onSave: (order: Order) => void;
 }
 
+interface PaymentStatusModalProps {
+  order: Order;
+  onClose: () => void;
+  onSave: (order: Order) => void;
+}
+
+function UpdatePaymentStatusModal({ order, onClose, onSave }: PaymentStatusModalProps) {
+  const { addToast } = useToast();
+  const [paymentStatus, setPaymentStatus] = useState(order.payment_status);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updated = await adminService.updatePaymentStatus(order.id, paymentStatus);
+      onSave(updated);
+      addToast({
+        type: 'success',
+        message: 'Payment status updated successfully',
+      });
+      onClose();
+    } catch (error: any) {
+      console.error('Failed to update payment status:', error);
+      addToast({
+        type: 'error',
+        message: error?.response?.data?.message || 'Failed to update payment status',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Update Payment Status</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Order #{order.order_number}
+            </label>
+            <select
+              value={paymentStatus}
+              onChange={(e) => setPaymentStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Updating...' : 'Update Payment'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function UpdateStatusModal({ order, onClose, onSave }: StatusModalProps) {
   const { addToast } = useToast();
   const [status, setStatus] = useState(order.status);
@@ -101,7 +176,7 @@ function UpdateStatusModal({ order, onClose, onSave }: StatusModalProps) {
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {saving ? 'Updating...' : 'Update Status'}
             </button>
@@ -126,6 +201,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [updatingOrder, setUpdatingOrder] = useState<Order | null>(null);
+  const [updatingPayment, setUpdatingPayment] = useState<Order | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -133,30 +209,17 @@ export default function AdminOrdersPage() {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          router.push('/admin/login');
-          return;
-        }
-        throw new Error('Failed to fetch orders');
-      }
-
-      const data = await response.json();
-      setOrders(data.orders.data || data.orders);
-    } catch (error) {
+      const response = await adminService.getOrders({ status: statusFilter !== 'all' ? statusFilter : undefined });
+      setOrders(response.data);
+    } catch (error: any) {
       console.error('Failed to fetch orders:', error);
+      if (error?.response?.status === 401) {
+        router.push('/admin/login');
+        return;
+      }
       addToast({
         type: 'error',
-        message: 'Failed to load orders',
+        message: error?.message || 'Failed to load orders',
       });
     } finally {
       setLoading(false);
@@ -169,6 +232,10 @@ export default function AdminOrdersPage() {
 
   const handleUpdateStatus = (order: Order) => {
     setUpdatingOrder(order);
+  };
+
+  const handleUpdatePayment = (order: Order) => {
+    setUpdatingPayment(order);
   };
 
   const handleSave = (updatedOrder: Order) => {
@@ -204,6 +271,13 @@ export default function AdminOrdersPage() {
         <UpdateStatusModal
           order={updatingOrder}
           onClose={() => setUpdatingOrder(null)}
+          onSave={handleSave}
+        />
+      )}
+      {updatingPayment && (
+        <UpdatePaymentStatusModal
+          order={updatingPayment}
+          onClose={() => setUpdatingPayment(null)}
           onSave={handleSave}
         />
       )}
@@ -334,12 +408,20 @@ export default function AdminOrdersPage() {
                       {new Date(order.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleUpdateStatus(order)}
-                        className="text-blue-600 hover:text-yellow-900"
-                      >
-                        Update Status
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => handleUpdateStatus(order)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Update Status
+                        </button>
+                        <button
+                          onClick={() => handleUpdatePayment(order)}
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          Update Payment
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

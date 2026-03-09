@@ -25,16 +25,72 @@ export const authService = {
     try {
       const response = await api.post('/login', data);
       
-      if (response.data.access_token) {
+      // Handle new backend response format
+      const responseData = response.data;
+      const token = responseData.data?.token || responseData.access_token || responseData.token;
+      const user = responseData.data?.user || responseData.user;
+      const role = responseData.data?.role || responseData.role;
+      
+      if (token) {
         TokenManager.setToken({
-          access_token: response.data.access_token,
-          token_type: response.data.token_type,
-          expires_in: response.data.expires_in
+          access_token: token,
+          token_type: responseData.token_type || 'Bearer',
+          expires_in: responseData.expires_in || 3600
         });
+        
+        // Store role for quick access
+        if (role) {
+          localStorage.setItem('user_role', role);
+        }
       }
       
-      return response.data;
+      return {
+        ...responseData,
+        user,
+        role,
+        access_token: token
+      };
     } catch (error: any) {
+      throw error;
+    }
+  },
+
+  async adminLogin(data: LoginRequest): Promise<AuthResponse> {
+    try {
+      const response = await api.post('/admin/login', data);
+      
+      // Handle new backend response format
+      const responseData = response.data;
+      const token = responseData.data?.token || responseData.access_token || responseData.token;
+      const user = responseData.data?.user || responseData.user;
+      const role = responseData.data?.role || responseData.role;
+      
+      if (token) {
+        TokenManager.setToken({
+          access_token: token,
+          token_type: responseData.token_type || 'Bearer',
+          expires_in: responseData.expires_in || 3600
+        });
+        
+        // Store role for quick access
+        if (role) {
+          localStorage.setItem('user_role', role);
+        }
+        
+        // Store complete admin data
+        if (user && role) {
+          localStorage.setItem('admin_data', JSON.stringify({ ...user, role }));
+        }
+      }
+      
+      return {
+        ...responseData,
+        user,
+        role,
+        access_token: token
+      };
+    } catch (error: any) {
+      console.error('Admin login error:', error);
       throw error;
     }
   },
@@ -47,6 +103,8 @@ export const authService = {
       console.warn('Logout request failed:', error);
     } finally {
       TokenManager.clearToken();
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('admin_data');
     }
   },
 
@@ -57,6 +115,8 @@ export const authService = {
       console.warn('Logout all request failed:', error);
     } finally {
       TokenManager.clearToken();
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('admin_data');
     }
   },
 
@@ -94,5 +154,32 @@ export const authService = {
 
   getToken(): string | null {
     return TokenManager.getToken();
+  },
+
+  getUserRole(): 'user' | 'admin' | 'super_admin' | null {
+    return localStorage.getItem('user_role') as 'user' | 'admin' | 'super_admin' | null;
+  },
+
+  hasRole(role: 'user' | 'admin' | 'super_admin'): boolean {
+    const userRole = this.getUserRole();
+    if (!userRole) return false;
+    
+    // Super admin has all permissions
+    if (userRole === 'super_admin') return true;
+    
+    // Admin has admin and user permissions
+    if (userRole === 'admin' && (role === 'admin' || role === 'user')) return true;
+    
+    // User only has user permissions
+    return userRole === role;
+  },
+
+  isAdmin(): boolean {
+    const role = this.getUserRole();
+    return role === 'admin' || role === 'super_admin';
+  },
+
+  isSuperAdmin(): boolean {
+    return this.getUserRole() === 'super_admin';
   }
 };

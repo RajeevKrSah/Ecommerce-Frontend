@@ -97,30 +97,17 @@ export default function AdminInventoryPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          router.push('/admin/login');
-          return;
-        }
-        throw new Error('Failed to fetch products');
-      }
-
-      const data = await response.json();
-      setProducts(data.products.data || data.products);
-    } catch (error) {
+      const response = await adminService.getProducts();
+      setProducts(response.data);
+    } catch (error: any) {
       console.error('Failed to fetch products:', error);
+      if (error?.response?.status === 401) {
+        router.push('/admin/login');
+        return;
+      }
       addToast({
         type: 'error',
-        message: 'Failed to load inventory',
+        message: error?.message || 'Failed to load inventory',
       });
     } finally {
       setLoading(false);

@@ -1,16 +1,17 @@
 /**
  * Admin Products Page
- * Production-ready implementation with modular components
+ * Production-ready implementation with token-based authentication
  * @module admin/products/page
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
 import { adminService } from '@/services/admin.service';
-import { Trash2 } from 'lucide-react';
+import TokenManager from '@/lib/tokenManager';
+import { Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { ProductModal } from './AddProduct';
 import { Product, Category } from './types';
 import { Attribute } from '@/types/variant';
@@ -24,6 +25,7 @@ export default function AdminProductsPage() {
   const [sizes, setSizes] = useState<any[]>([]);
   const [colors, setColors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
   const [modalState, setModalState] = useState<{
@@ -36,83 +38,92 @@ export default function AdminProductsPage() {
     product: null,
   });
 
+  // Check authentication on mount
   useEffect(() => {
+    if (!TokenManager.isAuthenticated()) {
+      router.replace('/admin/login');
+      return;
+    }
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Fetch products
-      const productsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-      });
-
-      if (!productsResponse.ok) {
-        if (productsResponse.status === 401) {
-          router.push('/admin/login');
-          return;
-        }
-        throw new Error('Failed to fetch products');
+      // Verify token before making requests
+      if (!TokenManager.isAuthenticated()) {
+        router.replace('/admin/login');
+        return;
       }
 
-      const productsData = await productsResponse.json();
-      setProducts(productsData.products.data || productsData.products);
+      // Fetch all data in parallel for better performance
+      const [productsData, categoriesData, sizesData, colorsData] = await Promise.allSettled([
+        adminService.getProducts(),
+        adminService.getCategories(),
+        adminService.getSizes(),
+        adminService.getColors(),
+      ]);
 
-      // Fetch other data (non-blocking)
-      try {
-        const categoriesData = await adminService.getCategories();
-        setCategories(categoriesData);
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
+      // Handle products
+      if (productsData.status === 'fulfilled') {
+        const products = productsData.value.data || productsData.value;
+        setProducts(Array.isArray(products) ? products : []);
+      } else {
+        console.error('Failed to fetch products:', productsData.reason);
+        throw new Error('Failed to load products');
+      }
+
+      // Handle categories (non-critical)
+      if (categoriesData.status === 'fulfilled') {
+        setCategories(Array.isArray(categoriesData.value) ? categoriesData.value : []);
+      } else {
+        console.warn('Failed to fetch categories:', categoriesData.reason);
         setCategories([]);
       }
 
-      try {
-        const attributesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attributes`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
-        const attributesData = attributesResponse.ok ? await attributesResponse.json() : [];
-        setAttributes(Array.isArray(attributesData) ? attributesData : attributesData.data || []);
-      } catch (error) {
-        console.error('Failed to fetch attributes:', error);
-        setAttributes([]);
-      }
-
-      try {
-        const sizesData = await adminService.getSizes();
-        setSizes(Array.isArray(sizesData) ? sizesData : []);
-      } catch (error) {
-        console.error('Failed to fetch sizes:', error);
+      // Handle sizes (non-critical)
+      if (sizesData.status === 'fulfilled') {
+        setSizes(Array.isArray(sizesData.value) ? sizesData.value : []);
+      } else {
+        console.warn('Failed to fetch sizes:', sizesData.reason);
         setSizes([]);
       }
 
-      try {
-        const colorsData = await adminService.getColors();
-        setColors(Array.isArray(colorsData) ? colorsData : []);
-      } catch (error) {
-        console.error('Failed to fetch colors:', error);
+      // Handle colors (non-critical)
+      if (colorsData.status === 'fulfilled') {
+        setColors(Array.isArray(colorsData.value) ? colorsData.value : []);
+      } else {
+        console.warn('Failed to fetch colors:', colorsData.reason);
         setColors([]);
       }
-    } catch (error) {
+
+      // Attributes are optional for now
+      setAttributes([]);
+    } catch (error: any) {
       console.error('Failed to fetch data:', error);
-      addToast({
-        type: 'error',
-        message: 'Failed to load data',
-      });
+      const errorMessage = error?.message || 'Failed to load data';
+      setError(errorMessage);
+      
+      // Handle authentication errors
+      if (error?.type === 'forbidden' || error?.response?.status === 401) {
+        addToast({
+          type: 'error',
+          message: 'Session expired. Please login again.',
+        });
+        TokenManager.clearToken();
+        router.replace('/admin/login');
+      } else {
+        addToast({
+          type: 'error',
+          message: errorMessage,
+        });
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, addToast]);
 
   const filteredProducts = products.filter(
     (product) =>
@@ -146,7 +157,7 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`Are you sure you want to delete "${product.name}"?`)) {
+    if (!confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
       return;
     }
 
@@ -157,11 +168,58 @@ export default function AdminProductsPage() {
         type: 'success',
         message: 'Product deleted successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete product:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to delete product';
       addToast({
         type: 'error',
-        message: 'Failed to delete product',
+        message: errorMessage,
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProducts.size === 0) {
+      addToast({
+        type: 'warning',
+        message: 'Please select products to delete',
+      });
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedProducts.size} product(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    const deletePromises = Array.from(selectedProducts).map(id => 
+      adminService.deleteProduct(id).catch(err => ({ error: true, id, err }))
+    );
+
+    try {
+      const results = await Promise.all(deletePromises);
+      const errors = results.filter((r: any) => r?.error);
+      
+      if (errors.length === 0) {
+        setProducts(products.filter(p => !selectedProducts.has(p.id)));
+        setSelectedProducts(new Set());
+        addToast({
+          type: 'success',
+          message: `Successfully deleted ${selectedProducts.size} product(s)`,
+        });
+      } else {
+        const successCount = results.length - errors.length;
+        setProducts(products.filter(p => !selectedProducts.has(p.id) || errors.some((e: any) => e.id === p.id)));
+        setSelectedProducts(new Set(errors.map((e: any) => e.id)));
+        addToast({
+          type: 'warning',
+          message: `Deleted ${successCount} product(s). ${errors.length} failed.`,
+        });
+      }
+    } catch (error) {
+      console.error('Bulk delete failed:', error);
+      addToast({
+        type: 'error',
+        message: 'Failed to delete products',
       });
     }
   };
@@ -194,11 +252,12 @@ export default function AdminProductsPage() {
         type: 'success',
         message: `Product ${!product.is_active ? 'activated' : 'deactivated'} successfully`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update product status:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to update product status';
       addToast({
         type: 'error',
-        message: 'Failed to update product status',
+        message: errorMessage,
       });
     }
   };
@@ -224,6 +283,25 @@ export default function AdminProductsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Products</h3>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={fetchData}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {modalState.isOpen && (
@@ -243,22 +321,42 @@ export default function AdminProductsPage() {
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Product Management</h1>
-            <p className="text-gray-600 mt-1">Manage your product catalog</p>
+            <p className="text-gray-600 mt-1">
+              {products.length} {products.length === 1 ? 'product' : 'products'} in catalog
+            </p>
           </div>
-          <button
-            onClick={handleCreate}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Create Product
-          </button>
+          <div className="flex items-center gap-3">
+            {selectedProducts.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete ({selectedProducts.size})
+              </button>
+            )}
+            <button
+              onClick={fetchData}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Create Product
+            </button>
+          </div>
         </div>
 
         {/* Search */}

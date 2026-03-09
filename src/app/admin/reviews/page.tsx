@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Star, ShieldCheck, Flag, Check, X, Eye, Trash2, MessageSquare } from 'lucide-react';
+import { Star, ShieldCheck, Flag, Check, X, Trash2 } from 'lucide-react';
 import StarRating from '@/components/ui/StarRating';
 import { Review, AdminReviewFilters, AdminReviewStats } from '@/types/review';
 import { adminReviewService } from '@/services/admin-review.service';

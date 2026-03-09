@@ -1,39 +1,51 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import TokenManager from './tokenManager';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
 
-// Create axios instance for admin API with cookie-based auth
+// Request queue for retry logic
+interface QueuedRequest {
+  resolve: (value: any) => void;
+  reject: (error: any) => void;
+  config: InternalAxiosRequestConfig;
+}
+
+let isRefreshing = false;
+let failedQueue: QueuedRequest[] = [];
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(prom.config);
+    }
+  });
+  
+  failedQueue = [];
+};
+
+// Create axios instance for admin API with token-based auth
 const adminApi = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // 30 seconds for production
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
   },
-  withCredentials: true, // Important for cookies
+  withCredentials: false, // Using Bearer tokens, not cookies
 });
 
-// Function to get CSRF token
-async function getCsrfToken() {
-  try {
-    await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, {
-      withCredentials: true,
-    });
-  } catch (error) {
-    console.error('Failed to get CSRF token:', error);
-  }
-}
-
-// Request interceptor
+// Request interceptor to add auth token
 adminApi.interceptors.request.use(
-  async (config) => {
-    // Get CSRF token before each request
-    if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
-      await getCsrfToken();
+  (config) => {
+    const token = TokenManager.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No auth token available for request');
     }
-    
     return config;
   },
   (error) => {
@@ -46,19 +58,30 @@ adminApi.interceptors.response.use(
   (response) => {
     return response;
   },
-  async (error) => {
-    console.log('AdminApi interceptor caught error:', error);
-    console.log('Error response:', error?.response);
-    
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Handle 401 errors (unauthorized)
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Queue the request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject, config: originalRequest });
+        }).then(() => {
+          return adminApi(originalRequest);
+        }).catch(err => {
+          return Promise.reject(err);
+        });
+      }
+
       originalRequest._retry = true;
-      
-      // Clear any stored admin data
+      isRefreshing = true;
+
+      // Clear invalid token and admin data
+      TokenManager.clearToken();
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_data');
+        localStorage.removeItem('user_role');
         
         // Redirect to admin login
         if (!window.location.pathname.includes('/admin/login')) {
@@ -66,29 +89,20 @@ adminApi.interceptors.response.use(
         }
       }
       
-      return Promise.reject(error);
-    }
-
-    // Handle CSRF token mismatch (419)
-    if (error.response?.status === 419) {
-      // Try to refresh CSRF token and retry
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
-        await getCsrfToken();
-        return adminApi(originalRequest);
-      }
+      processQueue(error);
+      isRefreshing = false;
       
       return Promise.reject({
-        message: 'Session expired. Please refresh the page and try again.',
-        type: 'csrf',
-        response: error.response
+        message: 'Session expired. Please login again.',
+        type: 'unauthorized',
+        originalError: error
       });
     }
 
     // Handle network errors
     if (!error.response) {
       return Promise.reject({
-        message: 'Network error. Please check your connection.',
+        message: 'Network error. Please check your connection and try again.',
         type: 'network',
         originalError: error
       });
@@ -96,9 +110,13 @@ adminApi.interceptors.response.use(
 
     // Handle rate limiting
     if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'];
       return Promise.reject({
-        message: error.response.data?.message || 'Too many requests. Please try again later.',
+        message: retryAfter 
+          ? `Too many requests. Please try again in ${retryAfter} seconds.`
+          : 'Too many requests. Please try again later.',
         type: 'rate_limit',
+        retryAfter: retryAfter ? parseInt(retryAfter) : null,
         response: error.response
       });
     }
@@ -106,9 +124,27 @@ adminApi.interceptors.response.use(
     // Handle validation errors
     if (error.response?.status === 422) {
       return Promise.reject({
-        message: error.response.data?.message || 'Validation failed',
-        errors: error.response.data?.errors,
+        message: (error.response.data as any)?.message || 'Validation failed',
+        errors: (error.response.data as any)?.errors,
         type: 'validation',
+        response: error.response
+      });
+    }
+
+    // Handle forbidden errors
+    if (error.response?.status === 403) {
+      return Promise.reject({
+        message: (error.response.data as any)?.message || 'Access denied. Admin privileges required.',
+        type: 'forbidden',
+        response: error.response
+      });
+    }
+
+    // Handle not found errors
+    if (error.response?.status === 404) {
+      return Promise.reject({
+        message: (error.response.data as any)?.message || 'Resource not found.',
+        type: 'not_found',
         response: error.response
       });
     }
@@ -116,7 +152,7 @@ adminApi.interceptors.response.use(
     // Handle server errors
     if (error.response?.status >= 500) {
       return Promise.reject({
-        message: error.response.data?.message || 'Server error. Please try again later.',
+        message: (error.response.data as any)?.message || 'Server error. Please try again later.',
         type: 'server',
         response: error.response
       });
@@ -128,4 +164,3 @@ adminApi.interceptors.response.use(
 );
 
 export default adminApi;
-export { getCsrfToken };
